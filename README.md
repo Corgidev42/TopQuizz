@@ -1,4 +1,4 @@
-# 🎮 MasterQuizz AI
+# 🎮 TopQuizz
 
 Plateforme locale de quiz événementiel propulsée par l'IA (Google Gemini). Inspirée du format Gotaga/CordJordan, conçue pour une diffusion **Mac → TV** avec contrôle par **smartphones** (type Kahoot/Buzzer).
 

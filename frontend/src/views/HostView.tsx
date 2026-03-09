@@ -34,7 +34,7 @@ export default function HostView() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-black">
-            Master<span className="text-brand-orange">Quizz</span>{" "}
+            Top<span className="text-brand-orange">Quizz</span>{" "}
             <span className="text-neutral-500 text-lg">HOST</span>
           </h1>
           <p className="text-sm text-neutral-400">

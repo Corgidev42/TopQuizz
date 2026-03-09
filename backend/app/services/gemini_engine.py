@@ -117,7 +117,7 @@ Inclus des célébrités internationales ET françaises."""
                 try:
                     resp = await client.get(
                         f"https://en.wikipedia.org/api/rest_v1/page/summary/{wiki_name}",
-                        headers={"User-Agent": "MasterQuizzAI/1.0"},
+                        headers={"User-Agent": "TopQuizz/1.0"},
                     )
                     if resp.status_code == 200:
                         data = resp.json()

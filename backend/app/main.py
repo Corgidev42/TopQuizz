@@ -7,7 +7,7 @@ from app.config import settings
 from app.routes import game, host, media
 from app.sockets.events import register_events
 
-fastapi_app = FastAPI(title="MasterQuizz AI")
+fastapi_app = FastAPI(title="TopQuizz")
 
 fastapi_app.add_middleware(
     CORSMiddleware,

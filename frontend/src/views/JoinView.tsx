@@ -40,7 +40,7 @@ export default function JoinView() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <h1 className="text-3xl font-black mb-2">
-        Master<span className="text-brand-orange">Quizz</span>
+        Top<span className="text-brand-orange">Quizz</span>
       </h1>
       <p className="text-neutral-400 mb-8">Rejoins la partie !</p>
 

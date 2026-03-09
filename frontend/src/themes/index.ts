@@ -1,6 +1,6 @@
 export const themes = {
   default: {
-    name: "MasterQuizz",
+    name: "TopQuizz",
     primary: "#F97316",
     primaryLight: "#FB923C",
     primaryDark: "#EA580C",

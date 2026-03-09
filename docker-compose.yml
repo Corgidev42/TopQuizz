@@ -11,7 +11,7 @@ services:
       - ./backend/app:/app/app
       - ./media:/app/media
     networks:
-      - masterquizz
+      - topquizz
     restart: unless-stopped
 
   frontend:
@@ -23,11 +23,11 @@ services:
       - ./frontend/public:/app/public
       - ./frontend/index.html:/app/index.html
     networks:
-      - masterquizz
+      - topquizz
     depends_on:
       - backend
     restart: unless-stopped
 
 networks:
-  masterquizz:
+  topquizz:
     driver: bridge

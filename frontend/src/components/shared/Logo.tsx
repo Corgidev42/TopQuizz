@@ -11,8 +11,7 @@ export default function Logo({ size = "md" }: Props) {
 
   return (
     <h1 className={`${sizes[size]} font-black tracking-tight`}>
-      Master<span className="text-brand-orange">Quizz</span>
-      <span className="text-neutral-500 text-[0.5em] ml-1">AI</span>
+      Top<span className="text-brand-orange">Quizz</span>
     </h1>
   );
 }
