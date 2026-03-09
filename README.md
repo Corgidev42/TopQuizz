@@ -165,6 +165,7 @@ Le Host peut aussi **créer un programme personnalisé** en choisissant les modu
 - 🕵️ **Mode "Alibi"** — Inspiré du concept de Squeezie : investigation et débat entre joueurs
 - 🎨 Thèmes visuels personnalisables
 - 🖼️ Avatars et personnalisation du profil
+- Ajout d'une IA tres fort pour la partie Blindtest qui va vraiment chercher sur internet les morceaux tendance, ou des ost d'anime connu etc... fin un truc bien quoi, qui va ensuite telecharger les audios pour que pendant le lancement sa soit nickel, ou alors pas besoin de les telecharger et juste lire directement l'audio ? car c'est vrai que je vois pas l'interet de dl la musique
 
 ---
 

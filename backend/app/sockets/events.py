@@ -58,6 +58,7 @@ def register_events(sio: socketio.AsyncServer):
             },
             room=sid,
         )
+        await sio.emit("game_state", session.to_dict(), room=session.id)
 
     @sio.event
     async def host_start_game(sid, data):

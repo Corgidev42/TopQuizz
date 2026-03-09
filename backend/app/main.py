@@ -31,4 +31,4 @@ sio = socketio.AsyncServer(
 
 register_events(sio)
 
-app = socketio.ASGIApp(sio, other_app=fastapi_app)
+app = socketio.ASGIApp(sio, fastapi_app)

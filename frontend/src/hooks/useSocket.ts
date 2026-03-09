@@ -1,74 +1,75 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { connectSocket, getSocket } from "../socket";
 import { useGameStore } from "../stores/gameStore";
 
 export function useSocket() {
-  const store = useGameStore();
+  const initialized = useRef(false);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     const socket = connectSocket();
+    const store = useGameStore.getState;
 
     socket.on("connect", () => {
-      store.setConnected(true);
-      store.setMySid(socket.id ?? null);
+      useGameStore.setState({ connected: true, mySid: socket.id ?? null });
     });
 
     socket.on("disconnect", () => {
-      store.setConnected(false);
+      useGameStore.setState({ connected: false });
     });
 
     socket.on("game_state", (state) => {
-      store.setGameState(state);
+      useGameStore.setState({ gameState: state });
     });
 
     socket.on("game_created", (data) => {
-      store.setGameId(data.game_id);
-      store.setJoinUrl(data.join_url);
-      store.setPresets(data.presets ?? []);
+      useGameStore.setState({
+        gameId: data.game_id,
+        joinUrl: data.join_url,
+        presets: data.presets ?? [],
+      });
     });
 
     socket.on("tv_connected", (data) => {
-      store.setGameId(data.game_id);
-      store.setJoinUrl(data.join_url);
+      useGameStore.setState({ gameId: data.game_id, joinUrl: data.join_url });
     });
 
     socket.on("joined", (data) => {
-      store.setGameId(data.game_id);
-      store.setMyPlayer(data.player);
+      useGameStore.setState({ gameId: data.game_id, myPlayer: data.player });
     });
 
     socket.on("error", (data) => {
-      store.setNotification({ type: "error", message: data.message });
-      setTimeout(() => store.setNotification(null), 4000);
+      useGameStore.setState({
+        notification: { type: "error", message: data.message },
+      });
+      setTimeout(() => useGameStore.setState({ notification: null }), 4000);
     });
 
     socket.on("answer_correct", (data) => {
-      store.setNotification({
-        type: "success",
-        message: `${data.pseudo} a trouvé ! +${data.points} pts`,
+      useGameStore.setState({
+        notification: {
+          type: "success",
+          message: `${data.pseudo} a trouvé ! +${data.points} pts`,
+        },
       });
-      setTimeout(() => store.setNotification(null), 3000);
+      setTimeout(() => useGameStore.setState({ notification: null }), 3000);
     });
 
     socket.on("answer_wrong", (data) => {
-      store.setNotification({
-        type: "error",
-        message: `${data.pseudo} se trompe !`,
+      useGameStore.setState({
+        notification: { type: "error", message: `${data.pseudo} se trompe !` },
       });
-      setTimeout(() => store.setNotification(null), 3000);
+      setTimeout(() => useGameStore.setState({ notification: null }), 3000);
     });
 
     socket.on("question_failed", () => {
-      store.setNotification({
-        type: "info",
-        message: "Personne n'a trouvé !",
+      useGameStore.setState({
+        notification: { type: "info", message: "Personne n'a trouvé !" },
       });
-      setTimeout(() => store.setNotification(null), 3000);
+      setTimeout(() => useGameStore.setState({ notification: null }), 3000);
     });
-
-    return () => {
-      socket.removeAllListeners();
-    };
   }, []);
 
   const emit = useCallback((event: string, data?: unknown) => {
