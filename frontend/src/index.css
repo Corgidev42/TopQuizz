@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface-dark text-white;
+    font-family: "Nunito", system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-orange hover:bg-brand-orange-dark text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-light hover:bg-surface text-white font-semibold py-3 px-6 rounded-xl border border-neutral-700 transition-all duration-200 active:scale-95;
+  }
+
+  .card {
+    @apply bg-surface rounded-2xl p-6 border border-neutral-800;
+  }
+
+  .input-field {
+    @apply bg-surface-light border border-neutral-700 text-white rounded-xl px-4 py-3 w-full focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold;
+  }
+
+  .badge-easy {
+    @apply badge bg-green-500/20 text-green-400;
+  }
+
+  .badge-medium {
+    @apply badge bg-yellow-500/20 text-yellow-400;
+  }
+
+  .badge-hard {
+    @apply badge bg-red-500/20 text-red-400;
+  }
+
+  .badge-expert {
+    @apply badge bg-purple-500/20 text-purple-400;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 3px;
+}

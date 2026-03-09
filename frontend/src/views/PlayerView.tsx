@@ -1,0 +1,257 @@
+import { useSearchParams } from "react-router-dom";
+import { useSocket } from "../hooks/useSocket";
+import { useGameStore } from "../stores/gameStore";
+import JoinView from "./JoinView";
+import Buzzer from "../components/player/Buzzer";
+import AnswerInput from "../components/player/AnswerInput";
+import WaitingScreen from "../components/player/WaitingScreen";
+import { MODULE_LABELS, MODULE_ICONS } from "../types";
+
+export default function PlayerView() {
+  const [searchParams] = useSearchParams();
+  const { emit } = useSocket();
+  const { gameState, mySid, myPlayer } = useGameStore();
+
+  // If not in a game yet, show join screen
+  if (!myPlayer || !gameState) {
+    return <JoinView />;
+  }
+
+  const phase = gameState.phase;
+  const amEliminated =
+    mySid != null && gameState.eliminated_this_question.includes(mySid);
+  const amAnswering = gameState.active_answerer === mySid;
+  const question = gameState.current_question;
+
+  // LOBBY
+  if (phase === "lobby") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6">
+        <div className="card text-center">
+          <div
+            className="w-16 h-16 rounded-full mx-auto mb-4"
+            style={{ backgroundColor: myPlayer.color }}
+          />
+          <h2 className="text-2xl font-bold">{myPlayer.pseudo}</h2>
+          <p className="text-neutral-400 mt-2">
+            Partie <span className="text-brand-orange font-bold">{gameState.id}</span>
+          </p>
+          <div className="mt-6 text-neutral-500">
+            <div className="animate-pulse-slow text-4xl mb-2">⏳</div>
+            <p>En attente du lancement...</p>
+            <p className="text-sm mt-2">
+              {Object.keys(gameState.players).length} joueur(s) connecté(s)
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // MODULE INTRO
+  if (phase === "module_intro") {
+    const mod = gameState.current_module;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 animate-bounce-in">
+        <div className="text-6xl mb-4">{mod ? MODULE_ICONS[mod] : "🎮"}</div>
+        <h1 className="text-3xl font-black text-center">
+          {mod ? MODULE_LABELS[mod] : "Prochain module"}
+        </h1>
+        <p className="text-neutral-400 mt-2">Prépare-toi !</p>
+      </div>
+    );
+  }
+
+  // BUZZER OPEN — show buzzer
+  if (phase === "buzzer_open") {
+    if (amEliminated) {
+      return (
+        <WaitingScreen
+          message="Tu es éliminé pour cette question"
+          emoji="😵"
+        />
+      );
+    }
+
+    return (
+      <div className="min-h-screen flex flex-col p-4">
+        {/* Question preview */}
+        {question && (
+          <div className="card mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className={`badge-${question.difficulty}`}>
+                {question.points}pt{question.points > 1 ? "s" : ""}
+              </span>
+              <span className="text-sm text-neutral-400">
+                Q{gameState.current_question_index + 1}/{gameState.total_questions}
+              </span>
+            </div>
+            <p className="font-semibold text-lg">{question.text}</p>
+          </div>
+        )}
+
+        {/* Buzzer */}
+        <div className="flex-1 flex items-center justify-center">
+          <Buzzer
+            onBuzz={() => emit("buzz", { game_id: gameState.id })}
+            disabled={amEliminated}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ANSWERING
+  if (phase === "answering") {
+    if (amAnswering && question) {
+      return (
+        <div className="min-h-screen flex flex-col p-4">
+          <div className="card mb-4">
+            <p className="font-semibold text-lg">{question.text}</p>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <AnswerInput
+              question={question}
+              onSubmit={(answer) =>
+                emit("submit_answer", { game_id: gameState.id, answer })
+              }
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (amEliminated) {
+      return (
+        <WaitingScreen message="Tu es éliminé pour cette question" emoji="😵" />
+      );
+    }
+
+    const answererPseudo =
+      gameState.active_answerer &&
+      gameState.players[gameState.active_answerer]?.pseudo;
+
+    return (
+      <WaitingScreen
+        message={`${answererPseudo ?? "Quelqu'un"} est en train de répondre...`}
+        emoji="👀"
+      />
+    );
+  }
+
+  // QUESTION RESULT
+  if (phase === "question_result") {
+    const myScore =
+      mySid && gameState.players[mySid] ? gameState.players[mySid].score : 0;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6">
+        <div className="card text-center animate-slide-up">
+          <div className="text-4xl mb-4">📊</div>
+          <h2 className="text-2xl font-bold mb-2">Résultat</h2>
+          {question && question.correct_answer && (
+            <p className="text-neutral-400 mb-4">
+              Réponse : <span className="text-green-400 font-bold">{question.correct_answer}</span>
+            </p>
+          )}
+          <div className="text-4xl font-black text-brand-orange">
+            {myScore} pts
+          </div>
+          <p className="text-neutral-500 mt-4">En attente de la prochaine question...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // MODULE RESULT
+  if (phase === "module_result") {
+    const myRank =
+      mySid
+        ? gameState.scores.findIndex((s) => s.sid === mySid) + 1
+        : 0;
+    const myScore =
+      mySid && gameState.players[mySid] ? gameState.players[mySid].score : 0;
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 animate-bounce-in">
+        <div className="text-6xl mb-4">
+          {myRank === 1 ? "🥇" : myRank === 2 ? "🥈" : myRank === 3 ? "🥉" : "📊"}
+        </div>
+        <h2 className="text-3xl font-black">#{myRank}</h2>
+        <div className="text-2xl font-bold text-brand-orange mt-2">
+          {myScore} pts
+        </div>
+        <p className="text-neutral-500 mt-4">Prochain module bientôt...</p>
+      </div>
+    );
+  }
+
+  // FINAL RESULTS
+  if (phase === "final_results") {
+    const myRank =
+      mySid
+        ? gameState.scores.findIndex((s) => s.sid === mySid) + 1
+        : 0;
+    const myScore =
+      mySid && gameState.players[mySid] ? gameState.players[mySid].score : 0;
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 animate-bounce-in">
+        <div className="text-8xl mb-4">
+          {myRank === 1 ? "🏆" : myRank <= 3 ? "🎉" : "👏"}
+        </div>
+        <h1 className="text-4xl font-black">
+          {myRank === 1 ? "VICTOIRE !" : `#${myRank}`}
+        </h1>
+        <div className="text-3xl font-bold text-brand-orange mt-4">
+          {myScore} pts
+        </div>
+        <p className="text-neutral-400 mt-6">Merci d'avoir joué ! 🎮</p>
+      </div>
+    );
+  }
+
+  // TIEBREAKER
+  if (phase === "tiebreaker") {
+    const amInTiebreaker =
+      mySid != null && mySid in gameState.tiebreaker_scores;
+
+    if (!amInTiebreaker) {
+      return (
+        <WaitingScreen message="Départage en cours..." emoji="⚡" />
+      );
+    }
+
+    if (amAnswering && question) {
+      return (
+        <div className="min-h-screen flex flex-col p-4">
+          <div className="text-center mb-4">
+            <span className="text-brand-orange font-bold text-lg">⚡ DÉPARTAGE</span>
+          </div>
+          <div className="card mb-4">
+            <p className="font-semibold text-lg">{question.text}</p>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <AnswerInput
+              question={question}
+              onSubmit={(answer) =>
+                emit("submit_answer", { game_id: gameState.id, answer })
+              }
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6">
+        <div className="text-4xl animate-pulse-slow mb-4">⚡</div>
+        <Buzzer
+          onBuzz={() => emit("buzz", { game_id: gameState.id })}
+          disabled={amEliminated}
+        />
+      </div>
+    );
+  }
+
+  return <WaitingScreen message="Chargement..." emoji="⏳" />;
+}

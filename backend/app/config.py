@@ -1,0 +1,26 @@
+import socket
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    gemini_api_key: str = ""
+    host: str = "0.0.0.0"
+    port: int = 8000
+    media_dir: str = "/app/media"
+
+    @property
+    def local_ip(self) -> str:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "127.0.0.1"
+
+    class Config:
+        env_file = ".env"
+
+
+settings = Settings()
