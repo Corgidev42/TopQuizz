@@ -21,6 +21,11 @@ class GeminiEngine:
             return json.loads(match.group(1).strip())
         return json.loads(text.strip())
 
+    @staticmethod
+    def _strip_option_prefix(text: str) -> str:
+        """Remove leading letter prefixes like 'A.', 'B)', 'A -' from option text."""
+        return re.sub(r"^[A-Da-d][\.\)\-]\s*", "", text.strip())
+
     async def generate_quiz_questions(
         self, theme: str, num: int, difficulties: list[Difficulty]
     ) -> list[dict]:
@@ -32,15 +37,25 @@ Répartis les difficultés parmi : {diff_str}.
 Retourne UNIQUEMENT un tableau JSON valide (pas d'autre texte) où chaque élément a :
 {{
   "question": "Le texte de la question",
-  "options": ["Option A", "Option B", "Option C", "Option D"],
-  "correct_answer": "Le texte exact de la bonne option",
+  "options": ["Texte de l'option 1", "Texte de l'option 2", "Texte de l'option 3", "Texte de l'option 4"],
+  "correct_answer": "Le texte exact de la bonne option (sans préfixe lettre)",
   "difficulty": "easy|medium|hard|expert"
 }}
 
+IMPORTANT : Les options ne doivent PAS commencer par "A.", "B.", "C.", "D." ou tout autre préfixe lettre.
 Les questions doivent être engageantes, fun et variées. En français."""
 
         response = await self.model.generate_content_async(prompt)
-        return self._parse_json(response.text)
+        raw = self._parse_json(response.text)
+
+        # Strip any letter prefixes the AI may have added despite instructions
+        for q in raw:
+            if q.get("options"):
+                q["options"] = [self._strip_option_prefix(o) for o in q["options"]]
+            if q.get("correct_answer"):
+                q["correct_answer"] = self._strip_option_prefix(q["correct_answer"])
+
+        return raw
 
     async def generate_memory_challenge(self, theme: str = "random") -> dict:
         """Generate a memory challenge: fetch image, analyze, generate questions."""

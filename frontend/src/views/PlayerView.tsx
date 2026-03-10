@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { useGameStore } from "../stores/gameStore";
 import JoinView from "./JoinView";
@@ -7,20 +8,80 @@ import AnswerInput from "../components/player/AnswerInput";
 import WaitingScreen from "../components/player/WaitingScreen";
 import { MODULE_LABELS, MODULE_ICONS } from "../types";
 
+const ANSWER_TIMEOUT_SEC = 3;
+
 export default function PlayerView() {
-  const [searchParams] = useSearchParams();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_searchParams] = useSearchParams();
   const { emit } = useSocket();
   const { gameState, mySid, myPlayer } = useGameStore();
+
+  // Answer timer — must be declared before any conditional return
+  const [timeLeft, setTimeLeft] = useState(ANSWER_TIMEOUT_SEC);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasTimedOutRef = useRef(false);
+  // Keep a stable ref to gameId so the timeout callback doesn't go stale
+  const gameIdRef = useRef<string | null>(gameState?.id ?? null);
+  useEffect(() => {
+    gameIdRef.current = gameState?.id ?? null;
+  }, [gameState?.id]);
+
+  const phase = gameState?.phase ?? null;
+  const amAnswering = gameState?.active_answerer === mySid;
+
+  const handleTimedOut = useCallback(() => {
+    if (!hasTimedOutRef.current && gameIdRef.current) {
+      hasTimedOutRef.current = true;
+      // Submit empty answer to trigger wrong answer / buzzer reopen
+      emit("submit_answer", { game_id: gameIdRef.current, answer: "" });
+    }
+  }, [emit]);
+
+  // Start/stop countdown when it's the player's turn to answer
+  useEffect(() => {
+    const isAnsweringNow = phase === "answering" && amAnswering;
+
+    if (isAnsweringNow) {
+      // Reset and start timer
+      hasTimedOutRef.current = false;
+      setTimeLeft(ANSWER_TIMEOUT_SEC);
+
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            timerRef.current = null;
+            handleTimedOut();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      // Clear timer when no longer answering
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setTimeLeft(ANSWER_TIMEOUT_SEC);
+      hasTimedOutRef.current = false;
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [phase, amAnswering, handleTimedOut]);
 
   // If not in a game yet, show join screen
   if (!myPlayer || !gameState) {
     return <JoinView />;
   }
 
-  const phase = gameState.phase;
   const amEliminated =
     mySid != null && gameState.eliminated_this_question.includes(mySid);
-  const amAnswering = gameState.active_answerer === mySid;
   const question = gameState.current_question;
 
   // LOBBY
@@ -34,7 +95,8 @@ export default function PlayerView() {
           />
           <h2 className="text-2xl font-bold">{myPlayer.pseudo}</h2>
           <p className="text-neutral-400 mt-2">
-            Partie <span className="text-brand-orange font-bold">{gameState.id}</span>
+            Partie{" "}
+            <span className="text-brand-orange font-bold">{gameState.id}</span>
           </p>
           <div className="mt-6 text-neutral-500">
             <div className="animate-pulse-slow text-4xl mb-2">⏳</div>
@@ -83,7 +145,8 @@ export default function PlayerView() {
                 {question.points}pt{question.points > 1 ? "s" : ""}
               </span>
               <span className="text-sm text-neutral-400">
-                Q{gameState.current_question_index + 1}/{gameState.total_questions}
+                Q{gameState.current_question_index + 1}/
+                {gameState.total_questions}
               </span>
             </div>
             <p className="font-semibold text-lg">{question.text}</p>
@@ -104,17 +167,48 @@ export default function PlayerView() {
   // ANSWERING
   if (phase === "answering") {
     if (amAnswering && question) {
+      // Progress bar width: goes from 100% to 0% over ANSWER_TIMEOUT_SEC seconds
+      const progressPct = (timeLeft / ANSWER_TIMEOUT_SEC) * 100;
+      const isUrgent = timeLeft <= 1;
+
       return (
         <div className="min-h-screen flex flex-col p-4">
+          {/* Timer bar */}
+          <div className="w-full h-2 bg-neutral-800 rounded-full mb-4 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ease-linear ${
+                isUrgent ? "bg-red-500" : "bg-brand-orange"
+              }`}
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+
+          {/* Timer countdown */}
+          <div className="text-center mb-2">
+            <span
+              className={`text-4xl font-black ${
+                isUrgent ? "text-red-500 animate-pulse" : "text-brand-orange"
+              }`}
+            >
+              {timeLeft}
+            </span>
+          </div>
+
           <div className="card mb-4">
             <p className="font-semibold text-lg">{question.text}</p>
           </div>
           <div className="flex-1 flex items-center justify-center">
             <AnswerInput
               question={question}
-              onSubmit={(answer) =>
-                emit("submit_answer", { game_id: gameState.id, answer })
-              }
+              onSubmit={(answer) => {
+                // Clear timer on manual submit
+                if (timerRef.current) {
+                  clearInterval(timerRef.current);
+                  timerRef.current = null;
+                }
+                hasTimedOutRef.current = true;
+                emit("submit_answer", { game_id: gameState.id, answer });
+              }}
             />
           </div>
         </div>
@@ -150,13 +244,18 @@ export default function PlayerView() {
           <h2 className="text-2xl font-bold mb-2">Résultat</h2>
           {question && question.correct_answer && (
             <p className="text-neutral-400 mb-4">
-              Réponse : <span className="text-green-400 font-bold">{question.correct_answer}</span>
+              Réponse :{" "}
+              <span className="text-green-400 font-bold">
+                {question.correct_answer}
+              </span>
             </p>
           )}
           <div className="text-4xl font-black text-brand-orange">
             {myScore} pts
           </div>
-          <p className="text-neutral-500 mt-4">En attente de la prochaine question...</p>
+          <p className="text-neutral-500 mt-4">
+            En attente de la prochaine question...
+          </p>
         </div>
       </div>
     );
@@ -164,10 +263,9 @@ export default function PlayerView() {
 
   // MODULE RESULT
   if (phase === "module_result") {
-    const myRank =
-      mySid
-        ? gameState.scores.findIndex((s) => s.sid === mySid) + 1
-        : 0;
+    const myRank = mySid
+      ? gameState.scores.findIndex((s) => s.sid === mySid) + 1
+      : 0;
     const myScore =
       mySid && gameState.players[mySid] ? gameState.players[mySid].score : 0;
 
@@ -187,10 +285,9 @@ export default function PlayerView() {
 
   // FINAL RESULTS
   if (phase === "final_results") {
-    const myRank =
-      mySid
-        ? gameState.scores.findIndex((s) => s.sid === mySid) + 1
-        : 0;
+    const myRank = mySid
+      ? gameState.scores.findIndex((s) => s.sid === mySid) + 1
+      : 0;
     const myScore =
       mySid && gameState.players[mySid] ? gameState.players[mySid].score : 0;
 
@@ -216,26 +313,52 @@ export default function PlayerView() {
       mySid != null && mySid in gameState.tiebreaker_scores;
 
     if (!amInTiebreaker) {
-      return (
-        <WaitingScreen message="Départage en cours..." emoji="⚡" />
-      );
+      return <WaitingScreen message="Départage en cours..." emoji="⚡" />;
     }
 
     if (amAnswering && question) {
+      const progressPct = (timeLeft / ANSWER_TIMEOUT_SEC) * 100;
+      const isUrgent = timeLeft <= 1;
+
       return (
         <div className="min-h-screen flex flex-col p-4">
-          <div className="text-center mb-4">
-            <span className="text-brand-orange font-bold text-lg">⚡ DÉPARTAGE</span>
+          {/* Timer bar */}
+          <div className="w-full h-2 bg-neutral-800 rounded-full mb-2 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ease-linear ${
+                isUrgent ? "bg-red-500" : "bg-brand-orange"
+              }`}
+              style={{ width: `${progressPct}%` }}
+            />
           </div>
+
+          <div className="text-center mb-2">
+            <span className="text-brand-orange font-bold text-lg">
+              ⚡ DÉPARTAGE
+            </span>
+            <span
+              className={`ml-4 text-3xl font-black ${
+                isUrgent ? "text-red-500 animate-pulse" : "text-brand-orange"
+              }`}
+            >
+              {timeLeft}
+            </span>
+          </div>
+
           <div className="card mb-4">
             <p className="font-semibold text-lg">{question.text}</p>
           </div>
           <div className="flex-1 flex items-center justify-center">
             <AnswerInput
               question={question}
-              onSubmit={(answer) =>
-                emit("submit_answer", { game_id: gameState.id, answer })
-              }
+              onSubmit={(answer) => {
+                if (timerRef.current) {
+                  clearInterval(timerRef.current);
+                  timerRef.current = null;
+                }
+                hasTimedOutRef.current = true;
+                emit("submit_answer", { game_id: gameState.id, answer });
+              }}
             />
           </div>
         </div>

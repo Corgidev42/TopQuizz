@@ -401,6 +401,9 @@ def register_events(sio: socketio.AsyncServer):
                     {"correct_answer": question.correct_answer},
                     room=session.id,
                 )
+            else:
+                # Buzzer reopened — other players can now answer
+                session.phase = GamePhase.BUZZER_OPEN
 
         await sio.emit("game_state", session.to_dict(), room=session.id)
 

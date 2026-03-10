@@ -167,11 +167,11 @@ Le Host peut aussi **créer un programme personnalisé** en choisissant les modu
 - 🖼️ Avatars et personnalisation du profil
 - Ajout d'une IA tres fort pour la partie Blindtest qui va vraiment chercher sur internet les morceaux tendance, ou des ost d'anime connu etc... fin un truc bien quoi, qui va ensuite telecharger les audios pour que pendant le lancement sa soit nickel, ou alors pas besoin de les telecharger et juste lire directement l'audio ? car c'est vrai que je vois pas l'interet de dl la musique
 
-## 🐞 Bugs/Fixes à traiter
+## 🐞 Bugs Corrigés / Améliorations Récentes
 
-- Correction : page bloquée après mauvaise réponse (après buzz, si le joueur se trompe, les autres doivent pouvoir répondre)
-- Ajouter timer réponse après buzz (2-3s) pour éviter l'anti-jeu
-- Corriger doublon lettres réponses (A, B, C, D)
+- ✅ **Correction page bloquée** : Après une mauvaise réponse, le buzzer est désormais correctement réouvert pour les autres joueurs.
+- ✅ **Timer après buzz** : Ajout d'un timer de 3 secondes pour répondre après avoir buzzé, évitant les blocages intentionnels.
+- ✅ **Doublon de lettres** : Suppression des préfixes "A, B, C, D" en double dans les options de MasterQuiz générées par l'IA.
 
 ---
 
