@@ -1,3 +1,5 @@
+nginx/certs/local.key
+nginx/certs/local.crt
 .env
 node_modules/
 __pycache__/
