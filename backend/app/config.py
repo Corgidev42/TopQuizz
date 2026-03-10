@@ -1,3 +1,4 @@
+import os
 import socket
 from pydantic_settings import BaseSettings
 
@@ -10,6 +11,10 @@ class Settings(BaseSettings):
 
     @property
     def local_ip(self) -> str:
+        # Correction: Forcer l'IP locale pour QR code
+        forced_ip = os.getenv("TOPQUIZZ_LOCAL_IP")
+        if forced_ip:
+            return forced_ip
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))

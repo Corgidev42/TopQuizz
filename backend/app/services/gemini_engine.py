@@ -12,7 +12,7 @@ from app.models.enums import Difficulty
 class GeminiEngine:
     def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        self.model = genai.GenerativeModel("gemini-2.5-flash")
 
     def _parse_json(self, text: str):
         """Extract JSON from Gemini response, handling markdown code blocks."""
