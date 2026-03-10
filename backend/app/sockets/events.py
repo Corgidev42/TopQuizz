@@ -1,6 +1,7 @@
 import uuid
 import os
 import random
+import asyncio
 
 import socketio
 
@@ -291,8 +292,20 @@ def register_events(sio: socketio.AsyncServer):
             await sio.emit("your_turn", {}, room=sid)
             await sio.emit("game_state", session.to_dict(), room=session.id)
 
+            # Backend timeout (4s) to prevent blocking if player disconnects or timer fails
+            async def timeout_handler():
+                await asyncio.sleep(4.0)
+                if session.active_answerer == sid:
+                    print(f"[Timeout] Auto-submitting for {player.pseudo}")
+                    await _process_submit_answer(sid, {"game_id": game_id, "answer": ""})
+
+            asyncio.create_task(timeout_handler())
+
     @sio.event
     async def submit_answer(sid, data):
+        await _process_submit_answer(sid, data)
+
+    async def _process_submit_answer(sid, data):
         game_id = data.get("game_id")
         answer = data.get("answer", "").strip()
         session = game_manager.get_session(game_id)
@@ -338,6 +351,7 @@ def register_events(sio: socketio.AsyncServer):
                 if unrevealed:
                     session.active_answerer = None
                     session.buzzer_open = True
+                    session.buzzer_queue = []  # Clear queue so players can buzz again
                     session.phase = GamePhase.BUZZER_OPEN
                     for p in session.players.values():
                         p.is_eliminated = False

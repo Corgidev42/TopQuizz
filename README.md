@@ -169,9 +169,9 @@ Le Host peut aussi **créer un programme personnalisé** en choisissant les modu
 
 ## 🐞 Bugs Corrigés / Améliorations Récentes
 
-- ✅ **Correction page bloquée** : Après une mauvaise réponse, le buzzer est désormais correctement réouvert pour les autres joueurs.
-- ✅ **Timer après buzz** : Ajout d'un timer de 3 secondes pour répondre après avoir buzzé, évitant les blocages intentionnels.
-- ✅ **Doublon de lettres** : Suppression des préfixes "A, B, C, D" en double dans les options de MasterQuiz générées par l'IA.
+- ✅ **Correction du Buzzer** : La file d'attente est désormais réinitialisée après une mauvaise réponse, permettant aux autres joueurs de rebuzzer immédiatement.
+- ✅ **Timer de réponse (Backend + Frontend)** : Ajout d'un timer de 3s côté client et d'un timeout de sécurité côté serveur pour éviter les blocages si un joueur ne répond pas.
+- ✅ **Nettoyage des options IA** : Amélioration du filtrage des préfixes (A, B, C, D) dans les questions générées par Gemini pour éviter les doublons à l'affichage.
 
 ---
 

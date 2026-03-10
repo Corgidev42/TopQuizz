@@ -78,6 +78,7 @@ class GameSession:
         self.eliminated_this_question.append(sid)
         self.players[sid].is_eliminated = True
         self.active_answerer = None
+        self.buzzer_queue = []  # Clear queue so players can buzz again
 
         active_players = [
             p.sid

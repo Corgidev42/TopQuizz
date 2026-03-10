@@ -23,8 +23,9 @@ class GeminiEngine:
 
     @staticmethod
     def _strip_option_prefix(text: str) -> str:
-        """Remove leading letter prefixes like 'A.', 'B)', 'A -' from option text."""
-        return re.sub(r"^[A-Da-d][\.\)\-]\s*", "", text.strip())
+        """Remove leading letter prefixes like 'A.', 'B)', 'A -', 'A:' or 'A Option' from option text."""
+        # This matches things like "A. ", "A) ", "A - ", "A: ", or just "A " followed by text
+        return re.sub(r"^[A-Da-d][\.\)\-\:\s]\s*", "", text.strip())
 
     async def generate_quiz_questions(
         self, theme: str, num: int, difficulties: list[Difficulty]
