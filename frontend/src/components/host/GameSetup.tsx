@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Spinner from "../shared/Spinner";
 import type { Player, Preset, ModuleConfig, ModuleType, Difficulty } from "../../types";
 import { MODULE_LABELS, MODULE_ICONS } from "../../types";
 import ModuleSelector from "./ModuleSelector";
@@ -31,10 +32,17 @@ export default function GameSetup({
     },
   ]);
 
+  const [loading, setLoading] = useState(false);
   const playerCount = Object.keys(players).length;
 
   return (
     <div className="space-y-6">
+      {loading && (
+        <div className="flex justify-center items-center py-6">
+          <Spinner />
+          <span className="ml-3 text-brand-orange font-semibold">Génération de la partie...</span>
+        </div>
+      )}
       {/* Game info */}
       <div className="card">
         <div className="flex justify-between items-center">
@@ -138,15 +146,16 @@ export default function GameSetup({
       {/* Start button */}
       <button
         onClick={() => {
+          setLoading(true);
           if (mode === "preset") {
             onStart({ preset: selectedPreset });
           } else {
             onStart({ modules: customModules });
           }
         }}
-        disabled={playerCount === 0}
+        disabled={playerCount === 0 || loading}
         className={`w-full py-4 rounded-xl font-bold text-xl transition-all ${
-          playerCount === 0
+          playerCount === 0 || loading
             ? "bg-neutral-700 text-neutral-500 cursor-not-allowed"
             : "btn-primary"
         }`}
