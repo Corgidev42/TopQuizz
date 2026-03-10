@@ -54,9 +54,24 @@ cd TopQuizz
 cp .env.example .env
 # Édite .env et ajoute ta clé GEMINI_API_KEY
 
-# 3. Lance l'application
-docker compose up --build
+# 3. Lance l'application via le Makefile (Recommandé)
+make build
 ```
+
+### Commandes utiles (Makefile)
+
+Un `Makefile` est disponible pour simplifier la gestion des conteneurs :
+
+| Commande | Action |
+|----------|--------|
+| `make up` | Démarre les conteneurs en arrière-plan |
+| `make down` | Arrête et supprime les conteneurs |
+| `make restart` | Redémarre tous les services |
+| `make logs` | Affiche les logs en temps réel |
+| `make build` | Reconstruit et démarre les conteneurs |
+| `make ps` | Liste les conteneurs actifs |
+| `make clean` | Nettoie les images et volumes inutilisés |
+| `make help` | Affiche la liste complète des commandes |
 
 ### Accès
 
