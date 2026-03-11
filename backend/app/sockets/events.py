@@ -113,11 +113,9 @@ def register_events(sio: socketio.AsyncServer):
         session.phase = GamePhase.BUZZER_OPEN
         session.buzzer_open = True
 
-        if session.current_question.module_type == ModuleType.MASTER_COMMU:
-            session.commu_revealed = []
-            session.commu_answers = session.current_question.extra_data.get(
-                "answers", []
-            )
+        if session.current_question.module_type == ModuleType.MASTER_FACE:
+            session.current_question.blur_level = 30  # Start with high blur
+            session.current_question.pixelation_level = 64 # Or high pixelation
 
         await sio.emit(
             "new_question",
@@ -161,11 +159,19 @@ def register_events(sio: socketio.AsyncServer):
 
         session.phase = GamePhase.QUESTION_RESULT
         if session.current_question:
-            await sio.emit(
-                "question_skipped",
-                {"correct_answer": session.current_question.correct_answer},
-                room=session.id,
-            )
+            # Reveal all answers for Master Commu if skipped
+            if session.current_question.module_type == ModuleType.MASTER_COMMU:
+                await sio.emit(
+                    "commu_complete",
+                    {"all_answers": session.current_question.extra_data.get("answers", [])},
+                    room=session.id,
+                )
+            else:
+                await sio.emit(
+                    "question_skipped",
+                    {"correct_answer": session.current_question.correct_answer},
+                    room=session.id,
+                )
         await sio.emit("game_state", session.to_dict(), room=session.id)
 
     @sio.event
@@ -292,26 +298,30 @@ def register_events(sio: socketio.AsyncServer):
             await sio.emit("your_turn", {}, room=sid)
             await sio.emit("game_state", session.to_dict(), room=session.id)
 
-            # Backend timeout (4s) to prevent blocking if player disconnects or timer fails
+            # Backend timeout (5s) to prevent blocking if player disconnects or timer fails
             async def timeout_handler():
-                await asyncio.sleep(4.0)
+                await asyncio.sleep(5.0)
                 if session.active_answerer == sid:
                     print(f"[Timeout] Auto-submitting for {player.pseudo}")
-                    await _process_submit_answer(sid, {"game_id": game_id, "answer": ""})
+                    await _process_submit_answer(sio, sid, {"game_id": game_id, "answer": ""})
 
-            asyncio.create_task(timeout_handler())
+            session.answer_timeout_task = asyncio.create_task(timeout_handler())
 
     @sio.event
     async def submit_answer(sid, data):
-        await _process_submit_answer(sid, data)
+        await _process_submit_answer(sio, sid, data)
 
-    async def _process_submit_answer(sid, data):
+    async def _process_submit_answer(sio: socketio.AsyncServer, sid: str, data: dict):
         game_id = data.get("game_id")
         answer = data.get("answer", "").strip()
         session = game_manager.get_session(game_id)
 
         if not session or session.active_answerer != sid:
             return
+
+        # Cancel the timeout task as an answer has been received
+        if hasattr(session, "answer_timeout_task") and session.answer_timeout_task and not session.answer_timeout_task.done():
+            session.answer_timeout_task.cancel()
 
         question = session.current_question
         if not question:

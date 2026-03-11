@@ -140,13 +140,19 @@ export default function HostView() {
               ))}
             </div>
             <button
-              onClick={() =>
-                emit("host_next_module", { game_id: gameState.id })
-              }
-              className="btn-primary text-lg px-8"
-            >
-              Module suivant ▶️
-            </button>
+            onClick={() => {
+              setLoadingNextModule(true);
+              emit("host_next_module", { game_id: gameState.id });
+            }}
+            disabled={loadingNextModule}
+            className="btn-primary text-lg px-8 flex items-center justify-center"
+          >
+            {loadingNextModule ? (
+              <><Spinner /> <span className="ml-3">Chargement...</span></>
+            ) : (
+              "Module suivant ▶️"
+            )}
+          </button>
           </div>
           <ScoreManager
             gameId={gameState.id}

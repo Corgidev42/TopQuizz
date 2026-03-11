@@ -184,9 +184,15 @@ Le Host peut aussi **créer un programme personnalisé** en choisissant les modu
 
 ## 🐞 Bugs Corrigés / Améliorations Récentes
 
-- ✅ **Correction du Buzzer** : La file d'attente est désormais réinitialisée après une mauvaise réponse, permettant aux autres joueurs de rebuzzer immédiatement.
-- ✅ **Timer de réponse (Backend + Frontend)** : Ajout d'un timer de 3s côté client et d'un timeout de sécurité côté serveur pour éviter les blocages si un joueur ne répond pas.
-- ✅ **Nettoyage des options IA** : Amélioration du filtrage des préfixes (A, B, C, D) dans les questions générées par Gemini pour éviter les doublons à l'affichage.
+- ✅ **Stabilité du Timer** : Correction d'un bug majeur où le timer de sécurité du backend pouvait annuler une bonne réponse. Le minuteur est désormais correctement stoppé dès qu'une réponse est validée.
+- ✅ **Timers de réponse ajustables** : Le temps de réponse varie désormais par module : **8s** pour Master Face, **10s** pour Master Commu et **4s** pour les autres.
+- ✅ **Amélioration des indicateurs de chargement** : Les boutons "Lancer la partie" et "Module suivant" affichent désormais un spinner pour mieux indiquer les temps de chargement de l'IA.
+- ✅ **Refonte du module Master Face** : 
+    - Le prompt IA a été amélioré pour générer des célébrités plus variées et intéressantes.
+    - Ajout d'un effet de **pixelisation** en plus du flou, qui se réduit progressivement.
+    - Si tous les joueurs se trompent, l'image est révélée un peu plus au lieu de montrer la réponse.
+- ✅ **Amélioration du module Master Commu** : Si l'hôte passe la question, les réponses restantes sont maintenant révélées à tous les joueurs.
+- ✅ **Robustesse des modules** : Si la génération de questions par l'IA échoue pour un module, le jeu passe désormais automatiquement au suivant avec un message d'erreur, évitant un blocage complet.
 
 ---
 

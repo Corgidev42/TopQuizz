@@ -36,6 +36,7 @@ export interface Question {
   options?: string[];
   image_url?: string;
   blur_level?: number;
+  pixelation_level?: number;
   media_path?: string;
   extra_data?: Record<string, unknown>;
 }

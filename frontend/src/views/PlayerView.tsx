@@ -8,13 +8,23 @@ import AnswerInput from "../components/player/AnswerInput";
 import WaitingScreen from "../components/player/WaitingScreen";
 import { MODULE_LABELS, MODULE_ICONS } from "../types";
 
-const ANSWER_TIMEOUT_SEC = 3;
+const getAnswerTimeout = (moduleType: ModuleType | undefined) => {
+  switch (moduleType) {
+    case "master_face":
+      return 8;
+    case "master_commu":
+      return 10;
+    default:
+      return 4;
+  }
+};
 
 export default function PlayerView() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_searchParams] = useSearchParams();
   const { emit } = useSocket();
   const { gameState, mySid, myPlayer } = useGameStore();
+  const ANSWER_TIMEOUT_SEC = getAnswerTimeout(gameState?.current_question?.module_type);
 
   // Answer timer — must be declared before any conditional return
   const [timeLeft, setTimeLeft] = useState(ANSWER_TIMEOUT_SEC);

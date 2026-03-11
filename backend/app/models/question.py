@@ -16,6 +16,7 @@ class Question(BaseModel):
     media_path: Optional[str] = None
     extra_data: Optional[dict] = None
     blur_level: Optional[int] = None
+    pixelation_level: Optional[int] = None  # For pixelation effect
 
     @model_validator(mode="after")
     def set_points_from_difficulty(self):

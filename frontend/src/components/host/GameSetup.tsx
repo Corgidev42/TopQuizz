@@ -154,15 +154,19 @@ export default function GameSetup({
           }
         }}
         disabled={playerCount === 0 || loading}
-        className={`w-full py-4 rounded-xl font-bold text-xl transition-all ${
+        className={`w-full py-4 rounded-xl font-bold text-xl transition-all flex items-center justify-center ${
           playerCount === 0 || loading
             ? "bg-neutral-700 text-neutral-500 cursor-not-allowed"
             : "btn-primary"
         }`}
       >
-        {playerCount === 0
-          ? "En attente de joueurs..."
-          : `Lancer la partie (${playerCount} joueur${playerCount > 1 ? "s" : ""}) 🚀`}
+        {loading ? (
+          <><Spinner /> <span className="ml-3">Génération en cours...</span></>
+        ) : playerCount === 0 ? (
+          "En attente de joueurs..."
+        ) : (
+          `Lancer la partie (${playerCount} joueur${playerCount > 1 ? "s" : ""}) 🚀`
+        )}
       </button>
     </div>
   );

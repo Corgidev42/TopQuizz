@@ -102,25 +102,26 @@ En français."""
         self, num: int, categories: list[str] | None = None
     ) -> list[dict]:
         """Generate celebrity face recognition challenges."""
-        cats = categories or ["cinéma", "musique", "sport", "TV", "internet"]
+        cats = categories or ["cinéma", "musique", "sport", "TV", "internet", "politique", "histoire"]
         cats_str = ", ".join(cats)
 
         prompt = f"""Génère {num} noms de célébrités très connues pour un jeu de reconnaissance faciale.
-Choisis des célébrités bien connues dans ces catégories : {cats_str}.
-Mélange différents niveaux de notoriété.
+Choisis des célébrités (hommes et femmes) bien connues dans ces catégories : {cats_str}.
+Mélange différents niveaux de notoriété (de très facile à difficile).
+Assure une bonne diversité (pas que des acteurs américains).
 
 Retourne UNIQUEMENT un tableau JSON valide :
 [
   {{
     "name": "Nom Complet",
     "category": "catégorie",
-    "fun_fact": "Un fait intéressant",
+    "fun_fact": "Un fait marquant ou une anecdote amusante sur la personne",
     "difficulty": "easy|medium|hard|expert",
-    "wikipedia_name": "Nom_Tel_Que_Dans_URL_Wikipedia"
+    "wikipedi-name": "Nom_Tel_Que_Dans_URL_Wikipedia_FR_ou_EN"
   }}
 ]
 
-Inclus des célébrités internationales ET françaises."""
+Inclus des célébrités internationales ET françaises. Le nom doit être celui le plus commun (ex: 'Zinédine Zidane', pas 'Zidane')."""
 
         response = await self.model.generate_content_async(prompt)
         celebrities = self._parse_json(response.text)

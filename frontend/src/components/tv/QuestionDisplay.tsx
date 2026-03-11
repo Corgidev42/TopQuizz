@@ -1,4 +1,4 @@
-import type { Question, GamePhase, Player } from "../../types";
+import type { Question, GamePhase, Player, ModuleType } from "../../types";
 import { DIFFICULTY_LABELS } from "../../types";
 
 interface Props {
@@ -43,13 +43,12 @@ export default function QuestionDisplay({
           <img
             src={question.image_url}
             alt="Question"
-            className="max-h-[400px] rounded-2xl object-cover"
+            className="max-h-[400px] rounded-2xl object-cover transition-all duration-500 ease-in-out"
             style={{
-              filter:
-                question.blur_level != null && question.blur_level > 0
-                  ? `blur(${question.blur_level}px)`
-                  : "none",
-              transition: "filter 0.5s ease",
+              imageRendering: question.pixelation_level ? "pixelated" : "auto",
+              filter: `blur(${question.blur_level ?? 0}px)`,
+              transform: `scale(${question.pixelation_level ? 1.05 : 1})`,
+              width: question.pixelation_level ? `${100 - (question.pixelation_level * 1.5)}%` : 'auto',
             }}
           />
         </div>
