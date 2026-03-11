@@ -1,14 +1,18 @@
+import { useState } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { useGameStore } from "../stores/gameStore";
 import GameSetup from "../components/host/GameSetup";
 import QuestionControl from "../components/host/QuestionControl";
 import ScoreManager from "../components/host/ScoreManager";
 import Logo from "../components/shared/Logo";
+import Spinner from "../components/shared/Spinner";
 import { MODULE_LABELS, MODULE_ICONS } from "../types";
 
 export default function HostView() {
   const { emit } = useSocket();
-  const { gameId, gameState, joinUrl, presets } = useGameStore();
+  const { gameId, gameState, joinUrl, presets, connected } = useGameStore();
+  const [creatingGame, setCreatingGame] = useState(false);
+  const [loadingNextModule, setLoadingNextModule] = useState(false);
 
   // Not yet hosting
   if (!gameId || !gameState) {
@@ -16,11 +20,33 @@ export default function HostView() {
       <div className="min-h-screen flex flex-col items-center justify-center p-6">
         <Logo size="md" />
         <p className="text-neutral-400 mt-4 mb-8">Panneau Host</p>
+        
+        {!connected && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500 rounded-lg text-red-500 flex items-center gap-2">
+            <span>⚠️ Déconnecté du serveur</span>
+          </div>
+        )}
+
         <button
-          onClick={() => emit("host_create_game")}
-          className="btn-primary text-xl px-10 py-4"
+          onClick={() => {
+            setCreatingGame(true);
+            emit("host_create_game");
+            // Reset loading state after timeout in case of error
+            setTimeout(() => setCreatingGame(false), 5000);
+          }}
+          disabled={!connected || creatingGame}
+          className={`btn-primary text-xl px-10 py-4 flex items-center gap-3 ${
+            (!connected || creatingGame) ? "opacity-50 cursor-not-allowed" : ""
+          }`}
         >
-          Créer une partie 🎮
+          {creatingGame ? (
+            <>
+              <Spinner />
+              <span>Création en cours...</span>
+            </>
+          ) : (
+            "Créer une partie 🎮"
+          )}
         </button>
       </div>
     );
