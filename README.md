@@ -184,7 +184,7 @@ Le Host peut aussi **créer un programme personnalisé** en choisissant les modu
 
 ## 🐞 Bugs Corrigés / Améliorations Récentes
 
-- ✅ **Stabilité du Timer** : Correction d'un bug majeur où le timer de sécurité du backend pouvait annuler une bonne réponse. Le minuteur est désormais correctement stoppé dès qu'une réponse est validée.
+- ✅ **Unicité des pseudos** : Il n'est plus possible pour deux joueurs d'avoir le même pseudo dans la même partie.
 - ✅ **Timers de réponse ajustables** : Le temps de réponse varie désormais par module : **8s** pour Master Face, **10s** pour Master Commu et **4s** pour les autres.
 - ✅ **Amélioration des indicateurs de chargement** : Les boutons "Lancer la partie" et "Module suivant" affichent désormais un spinner pour mieux indiquer les temps de chargement de l'IA.
 - ✅ **Refonte du module Master Face** : 

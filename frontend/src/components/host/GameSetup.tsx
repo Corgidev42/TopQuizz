@@ -37,12 +37,6 @@ export default function GameSetup({
 
   return (
     <div className="space-y-6">
-      {loading && (
-        <div className="flex justify-center items-center py-6">
-          <Spinner />
-          <span className="ml-3 text-brand-orange font-semibold">Génération de la partie...</span>
-        </div>
-      )}
       {/* Game info */}
       <div className="card">
         <div className="flex justify-between items-center">

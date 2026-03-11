@@ -247,6 +247,14 @@ def register_events(sio: socketio.AsyncServer):
             )
             return
 
+        # Check for duplicate pseudo
+        existing_pseudos = [p.pseudo.lower() for p in session.players.values()]
+        if pseudo.lower() in existing_pseudos:
+            await sio.emit(
+                "error", {"message": f'Le pseudo "{pseudo}" est déjà pris'}, room=sid
+            )
+            return
+
         player = session.add_player(sid, pseudo)
         await sio.enter_room(sid, session.id)
 
