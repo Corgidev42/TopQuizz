@@ -567,13 +567,13 @@ def register_events(sio: socketio.AsyncServer):
                 streamer = get_audio_streamer()
                 
                 # 2. Download audio for each suggestion
-                for song in suggestions:
+                for i, song in enumerate(suggestions):
                     print(f"[BlindTest] Downloading {song['artist']} - {song['title']}...")
                     
-                    # Notify clients about progress (optional but nice)
+                    # Notify clients about progress without spoiling
                     await sio_server.emit(
                         "module_loading_progress",
-                        {"message": f"Téléchargement : {song['artist']} - {song['title']}"},
+                        {"message": f"Préparation du morceau {i + 1}/{len(suggestions)}..."},
                         room=session.id
                     )
 
