@@ -7,6 +7,7 @@ import socketio
 
 from app.services.game_manager import game_manager, GameSession, DEFAULT_PRESETS
 from app.services.gemini_engine import get_gemini
+from app.services.audio_streamer import get_audio_streamer
 from app.services.fuzzy_match import fuzzy_match
 from app.models.enums import (
     GamePhase,
@@ -557,32 +558,48 @@ def register_events(sio: socketio.AsyncServer):
                     )
 
             elif module_config.module_type == ModuleType.BLIND_TEST:
-                media_dir = os.path.join(settings.media_dir, "blindtest")
-                files = []
-                if os.path.exists(media_dir):
-                    files = [
-                        f
-                        for f in os.listdir(media_dir)
-                        if f.lower().endswith((".mp3", ".mp4", ".wav", ".m4a"))
-                    ]
-                random.shuffle(files)
+                # 1. Ask Gemini for popular songs
+                suggestions = await gemini.generate_blindtest_suggestions(
+                    num=module_config.num_questions,
+                    theme=module_config.theme
+                )
 
-                for f in files[: module_config.num_questions]:
-                    name = os.path.splitext(f)[0]
-                    parts = name.split(" - ", 1)
-                    answer = f"{parts[0]} - {parts[1]}" if len(parts) == 2 else name
-
-                    session.current_module_questions.append(
-                        Question(
-                            id=uuid.uuid4().hex[:8],
-                            module_type=ModuleType.BLIND_TEST,
-                            text="Quel est ce titre / artiste ?",
-                            correct_answer=answer,
-                            difficulty=Difficulty.MEDIUM,
-                            media_path=f"/media/blindtest/{f}",
-                            extra_data={"filename": f},
-                        )
+                streamer = get_audio_streamer()
+                
+                # 2. Download audio for each suggestion
+                for song in suggestions:
+                    print(f"[BlindTest] Downloading {song['artist']} - {song['title']}...")
+                    
+                    # Notify clients about progress (optional but nice)
+                    await sio_server.emit(
+                        "module_loading_progress",
+                        {"message": f"Téléchargement : {song['artist']} - {song['title']}"},
+                        room=session.id
                     )
+
+                    audio_path = await streamer.search_and_download(song['search_query'])
+                    
+                    if audio_path:
+                        session.current_module_questions.append(
+                            Question(
+                                id=uuid.uuid4().hex[:8],
+                                module_type=ModuleType.BLIND_TEST,
+                                text="Quel est ce titre / artiste ?",
+                                correct_answer=f"{song['artist']} - {song['title']}",
+                                difficulty=Difficulty.MEDIUM,
+                                media_path=audio_path,
+                                extra_data={
+                                    "artist": song['artist'],
+                                    "title": song['title']
+                                },
+                            )
+                        )
+                    else:
+                        print(f"[BlindTest] Failed to download {song['search_query']}")
+
+            # If after all generation, no questions were created, advance again.
+            if not session.current_module_questions:
+                await _advance_module(sio_server, session)
 
         except Exception as e:
             print(f"[Error generating questions] {e}")

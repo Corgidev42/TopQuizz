@@ -195,6 +195,28 @@ Réponds UNIQUEMENT par "YES" ou "NO"."""
         response = await self.model.generate_content_async(prompt)
         return "YES" in response.text.strip().upper()
 
+    async def generate_blindtest_suggestions(
+        self, num: int, theme: str | None = None
+    ) -> list[dict]:
+        """Generate popular song suggestions for blind test."""
+        theme_part = f'sur le thème "{theme}"' if theme else "de hits populaires, iconiques et variés (années 80, 90, 2000, 2010, 2020, OST anime/film)"
+        
+        prompt = f"""Génère une liste de {num} chansons très connues pour un blind test {theme_part}.
+Les chansons doivent être immédiatement reconnaissables.
+Mélange les styles et les époques pour que ce soit amusant.
+
+Retourne UNIQUEMENT un tableau JSON valide :
+[
+  {{
+    "artist": "Nom de l'artiste",
+    "title": "Titre de la chanson",
+    "search_query": "Artiste - Titre (Official Audio)"
+  }}
+]"""
+
+        response = await self.model.generate_content_async(prompt)
+        return self._parse_json(response.text)
+
     async def check_commu_answer(
         self, expected_answers: list[dict], given: str
     ) -> dict | None:

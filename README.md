@@ -193,6 +193,7 @@ Le Host peut aussi **créer un programme personnalisé** en choisissant les modu
     - Si tous les joueurs se trompent, l'image est révélée un peu plus au lieu de montrer la réponse.
 - ✅ **Amélioration du module Master Commu** : Si l'hôte passe la question, les réponses restantes sont maintenant révélées à tous les joueurs.
 - ✅ **Robustesse des modules** : Si la génération de questions par l'IA échoue pour un module, le jeu passe désormais automatiquement au suivant avec un message d'erreur, évitant un blocage complet.
+- ✅ **Blindtest "Intelligent"** : Le module Blindtest utilise maintenant Gemini pour suggérer des titres populaires et `yt-dlp` pour télécharger automatiquement l'audio depuis YouTube, rendant le jeu jouable sans préparation de fichiers locaux.
 
 ---
 
