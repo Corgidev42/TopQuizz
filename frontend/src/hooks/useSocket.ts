@@ -21,7 +21,11 @@ export function useSocket() {
     });
 
     socket.on("game_state", (state) => {
-      useGameStore.setState({ gameState: state });
+      const current = store();
+      useGameStore.setState({
+        gameState: state,
+        gameId: current.gameId ?? state?.id ?? null,
+      });
     });
 
     socket.on("game_created", (data) => {

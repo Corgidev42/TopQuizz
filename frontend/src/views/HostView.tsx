@@ -15,7 +15,7 @@ export default function HostView() {
   const [loadingNextModule, setLoadingNextModule] = useState(false);
 
   // Not yet hosting
-  if (!gameId || !gameState) {
+  if (!gameState) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6">
         <Logo size="md" />
