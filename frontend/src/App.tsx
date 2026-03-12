@@ -6,6 +6,7 @@ import PlayerView from "./views/PlayerView";
 import HostView from "./views/HostView";
 import JoinView from "./views/JoinView";
 import Logo from "./components/shared/Logo";
+import ErrorBoundary from "./components/shared/ErrorBoundary";
 
 function HomePage() {
   return (
@@ -115,13 +116,15 @@ export default function App() {
   return (
     <>
       <Notification />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/tv" element={<TVView />} />
-        <Route path="/play" element={<PlayerView />} />
-        <Route path="/host" element={<HostView />} />
-        <Route path="/join" element={<JoinView />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/tv" element={<TVView />} />
+          <Route path="/play" element={<PlayerView />} />
+          <Route path="/host" element={<HostView />} />
+          <Route path="/join" element={<JoinView />} />
+        </Routes>
+      </ErrorBoundary>
     </>
   );
 }
