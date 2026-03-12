@@ -1,6 +1,7 @@
 import json
 import re
 import httpx
+import asyncio
 from io import BytesIO
 from PIL import Image
 import google.generativeai as genai
@@ -12,7 +13,59 @@ from app.models.enums import Difficulty
 class GeminiEngine:
     def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
-        self.model = genai.GenerativeModel("gemini-2.0-flash")
+        self._model_name = settings.gemini_model or "gemini-2.0-flash"
+        self._fallback_models = [
+            m.strip()
+            for m in (settings.gemini_fallback_models or "").split(",")
+            if m.strip()
+        ]
+        if self._model_name not in self._fallback_models:
+            self._fallback_models.insert(0, self._model_name)
+        self.model = genai.GenerativeModel(self._model_name)
+
+    def _is_quota_error(self, e: Exception) -> bool:
+        msg = str(e).lower()
+        return "429" in msg or "quota" in msg or "resourceexhausted" in msg
+
+    def _extract_retry_delay_seconds(self, e: Exception) -> float | None:
+        msg = str(e)
+        m = re.search(r"retry in\s+(\d+(?:\.\d+)?)s", msg, flags=re.IGNORECASE)
+        if m:
+            try:
+                return float(m.group(1))
+            except Exception:
+                return None
+        m = re.search(r"retry_delay\s*\{\s*seconds:\s*(\d+)", msg, flags=re.IGNORECASE)
+        if m:
+            try:
+                return float(m.group(1))
+            except Exception:
+                return None
+        return None
+
+    async def _generate_content(self, payload):
+        try:
+            return await self.model.generate_content_async(payload)
+        except Exception as e:
+            if not self._is_quota_error(e):
+                raise
+
+            retry_delay = self._extract_retry_delay_seconds(e)
+            if retry_delay:
+                await asyncio.sleep(min(30.0, max(0.0, retry_delay)))
+
+            for candidate in self._fallback_models:
+                if candidate == self._model_name:
+                    continue
+                try:
+                    self._model_name = candidate
+                    self.model = genai.GenerativeModel(candidate)
+                    return await self.model.generate_content_async(payload)
+                except Exception as e2:
+                    if self._is_quota_error(e2):
+                        continue
+                    raise
+            raise
 
     def _parse_json(self, text: str):
         """Extract JSON from Gemini response, handling markdown code blocks."""
@@ -46,7 +99,7 @@ Retourne UNIQUEMENT un tableau JSON valide (pas d'autre texte) où chaque élém
 IMPORTANT : Les options ne doivent PAS commencer par "A.", "B.", "C.", "D." ou tout autre préfixe lettre.
 Les questions doivent être engageantes, fun et variées. En français."""
 
-        response = await self.model.generate_content_async(prompt)
+        response = await self._generate_content(prompt)
         raw = self._parse_json(response.text)
 
         # Strip any letter prefixes the AI may have added despite instructions
@@ -93,7 +146,7 @@ Retourne UNIQUEMENT du JSON valide :
 
 En français."""
 
-        response = await self.model.generate_content_async([analysis_prompt, img])
+        response = await self._generate_content([analysis_prompt, img])
         data = self._parse_json(response.text)
         data["image_url"] = str(resp.url)
         return data
@@ -123,7 +176,7 @@ Retourne UNIQUEMENT un tableau JSON valide :
 
 Inclus des célébrités internationales ET françaises. Le nom doit être celui le plus commun (ex: 'Zinédine Zidane', pas 'Zidane')."""
 
-        response = await self.model.generate_content_async(prompt)
+        response = await self._generate_content(prompt)
         celebrities = self._parse_json(response.text)
 
         async with httpx.AsyncClient() as client:
@@ -177,7 +230,7 @@ Retourne UNIQUEMENT un tableau JSON valide :
 
 En français. Questions fun et dans l'air du temps."""
 
-        response = await self.model.generate_content_async(prompt)
+        response = await self._generate_content(prompt)
         return self._parse_json(response.text)
 
     async def check_answer(self, expected: str, given: str) -> bool:
@@ -192,7 +245,7 @@ La réponse du joueur est-elle essentiellement correcte ? Considère :
 
 Réponds UNIQUEMENT par "YES" ou "NO"."""
 
-        response = await self.model.generate_content_async(prompt)
+        response = await self._generate_content(prompt)
         return "YES" in response.text.strip().upper()
 
     async def generate_blindtest_suggestions(
@@ -214,7 +267,7 @@ Retourne UNIQUEMENT un tableau JSON valide :
   }}
 ]"""
 
-        response = await self.model.generate_content_async(prompt)
+        response = await self._generate_content(prompt)
         return self._parse_json(response.text)
 
     async def check_commu_answer(
@@ -232,7 +285,7 @@ Considère les fautes, synonymes et formulations alternatives.
 Réponds UNIQUEMENT avec le texte exact de la réponse correspondante, ou "NONE" si aucune ne correspond.
 Ta réponse doit être exactement une des réponses attendues ou "NONE"."""
 
-        response = await self.model.generate_content_async(prompt)
+        response = await self._generate_content(prompt)
         result = response.text.strip()
 
         if result == "NONE":
