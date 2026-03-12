@@ -117,11 +117,51 @@ class GeminiEngine:
             raise
 
     def _parse_json(self, text: str):
-        """Extract JSON from Gemini response, handling markdown code blocks."""
-        match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+        s = (text or "").strip()
+        if not s:
+            raise ValueError("Empty AI response")
+
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)```", s)
         if match:
-            return json.loads(match.group(1).strip())
-        return json.loads(text.strip())
+            s = match.group(1).strip()
+        else:
+            first_obj = s.find("{")
+            first_arr = s.find("[")
+            candidates = [i for i in (first_obj, first_arr) if i != -1]
+            if candidates:
+                start = min(candidates)
+                last_obj = s.rfind("}")
+                last_arr = s.rfind("]")
+                end = max(last_obj, last_arr)
+                if end > start:
+                    s = s[start : end + 1].strip()
+
+        s = re.sub(r",\s*(\}|\])", r"\1", s)
+        try:
+            return json.loads(s)
+        except Exception as e:
+            preview = (text or "").strip().replace("\n", " ")
+            preview = preview[:240]
+            raise ValueError(f"Invalid JSON from AI: {e}. Preview: {preview}") from e
+
+    async def _generate_json(self, payload):
+        def with_strict_json(p):
+            suffix = "\n\nIMPORTANT: Retourne UNIQUEMENT du JSON valide, sans markdown, sans texte."
+            if isinstance(p, str):
+                return p + suffix
+            if isinstance(p, list) and p and isinstance(p[0], str):
+                return [p[0] + suffix, *p[1:]]
+            return None
+
+        response = await self._generate_content(payload)
+        try:
+            return self._parse_json(response.text)
+        except Exception:
+            retry_payload = with_strict_json(payload)
+            if retry_payload is None:
+                raise
+            response2 = await self._generate_content(retry_payload)
+            return self._parse_json(response2.text)
 
     @staticmethod
     def _strip_option_prefix(text: str) -> str:
@@ -148,8 +188,7 @@ Retourne UNIQUEMENT un tableau JSON valide (pas d'autre texte) où chaque élém
 IMPORTANT : Les options ne doivent PAS commencer par "A.", "B.", "C.", "D." ou tout autre préfixe lettre.
 Les questions doivent être engageantes, fun et variées. En français."""
 
-        response = await self._generate_content(prompt)
-        raw = self._parse_json(response.text)
+        raw = await self._generate_json(prompt)
 
         # Strip any letter prefixes the AI may have added despite instructions
         for q in raw:
@@ -200,8 +239,7 @@ Retourne UNIQUEMENT du JSON valide :
 
 En français."""
 
-        response = await self._generate_content([analysis_prompt, img])
-        data = self._parse_json(response.text)
+        data = await self._generate_json([analysis_prompt, img])
         data["image_url"] = str(resp.url)
         return data
 
@@ -230,8 +268,7 @@ Retourne UNIQUEMENT un tableau JSON valide :
 
 Inclus des célébrités internationales ET françaises. Le nom doit être celui le plus commun (ex: 'Zinédine Zidane', pas 'Zidane')."""
 
-        response = await self._generate_content(prompt)
-        celebrities = self._parse_json(response.text)
+        celebrities = await self._generate_json(prompt)
 
         sem = asyncio.Semaphore(8)
 
@@ -294,8 +331,7 @@ Retourne UNIQUEMENT un tableau JSON valide :
 
 En français. Questions fun et dans l'air du temps."""
 
-        response = await self._generate_content(prompt)
-        return self._parse_json(response.text)
+        return await self._generate_json(prompt)
 
     async def check_answer(self, expected: str, given: str) -> bool:
         """Use Gemini to semantically check if an answer is correct despite typos."""
@@ -331,8 +367,7 @@ Retourne UNIQUEMENT un tableau JSON valide :
   }}
 ]"""
 
-        response = await self._generate_content(prompt)
-        return self._parse_json(response.text)
+        return await self._generate_json(prompt)
 
     async def check_commu_answer(
         self, expected_answers: list[dict], given: str
@@ -350,7 +385,7 @@ Réponds UNIQUEMENT avec le texte exact de la réponse correspondante, ou "NONE"
 Ta réponse doit être exactement une des réponses attendues ou "NONE"."""
 
         response = await self._generate_content(prompt)
-        result = response.text.strip()
+        result = (response.text or "").strip()
 
         if result == "NONE":
             return None
