@@ -155,6 +155,42 @@ Le format de nommage `Artiste - Titre.ext` permet la correction automatique des 
 | Variable | Description |
 |----------|-------------|
 | `GEMINI_API_KEY` | Clé API Google Gemini (obligatoire) |
+| `GEMINI_MODEL` | Modèle Gemini principal (défaut : `gemini-2.0-flash`) |
+| `GEMINI_FALLBACK_MODELS` | Modèles Gemini de secours (CSV) en cas de quota/erreur |
+| `OLLAMA_ENABLED` | Active le fallback local Ollama si Gemini échoue (`true/false`) |
+| `OLLAMA_BASE_URL` | URL d’Ollama depuis Docker (défaut : `http://host.docker.internal:11434`) |
+| `OLLAMA_MODEL` | Modèle Ollama à utiliser (défaut : `qwen2.5:7b-instruct`) |
+
+### 🧠 Ollama (fallback si Gemini ne marche pas)
+
+Le backend essaie Gemini en priorité. Si Gemini renvoie une erreur (quota, indisponibilité, etc.), TopQuizz peut basculer automatiquement sur Ollama (local).
+
+1) Installer et lancer Ollama sur ta machine
+
+2) Télécharger un modèle adapté
+
+```bash
+ollama pull qwen2.5:7b-instruct
+```
+
+3) Activer le fallback dans `.env`
+
+```bash
+OLLAMA_ENABLED=true
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=qwen2.5:7b-instruct
+```
+
+4) Rebuild/restart
+
+```bash
+docker compose up -d --build backend
+```
+
+Modèles recommandés pour TopQuizz :
+- `qwen2.5:7b-instruct` (très bon en JSON/consignes, bon en français)
+- `llama3.1:8b-instruct` (bon généraliste)
+- `phi3:mini` (plus léger, qualité plus variable)
 
 ## 🎨 Presets de Partie
 
@@ -170,7 +206,7 @@ Le Host peut aussi **créer un programme personnalisé** en choisissant les modu
 
 - **Backend :** Python 3.12, FastAPI, python-socketio, google-generativeai, thefuzz, Pydantic
 - **Frontend :** React 18, Vite, TypeScript, Tailwind CSS, Zustand, Framer Motion, Socket.IO Client
-- **IA :** Google Gemini 1.5 Flash
+- **IA :** Google Gemini 2.0 Flash
 - **Infra :** Docker Compose
 
 ## 🚧 Features à Venir

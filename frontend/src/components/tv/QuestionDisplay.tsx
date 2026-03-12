@@ -18,6 +18,26 @@ export default function QuestionDisplay({
 }: Props) {
   if (!question) return null;
 
+  const imageUrl: string = question.image_url ?? "";
+  const imageBlock =
+    imageUrl.length > 0 ? (
+      <div className="flex justify-center mb-8">
+        <img
+          src={imageUrl}
+          alt="Question"
+          className="max-h-[400px] rounded-2xl object-cover transition-all duration-500 ease-in-out"
+          style={{
+            imageRendering: question.pixelation_level ? "pixelated" : "auto",
+            filter: `blur(${question.blur_level ?? 0}px)`,
+            transform: `scale(${question.pixelation_level ? 1.05 : 1})`,
+            width: question.pixelation_level
+              ? `${100 - question.pixelation_level * 1.5}%`
+              : "auto",
+          }}
+        />
+      </div>
+    ) : null;
+
   const answererPlayer = activeAnswerer ? players[activeAnswerer] : null;
 
   return (
@@ -38,21 +58,7 @@ export default function QuestionDisplay({
       </h2>
 
       {/* Image (Master Memory / Master Face) */}
-      {question.image_url && (
-        <div className="flex justify-center mb-8">
-          <img
-            src={question.image_url}
-            alt="Question"
-            className="max-h-[400px] rounded-2xl object-cover transition-all duration-500 ease-in-out"
-            style={{
-              imageRendering: question.pixelation_level ? "pixelated" : "auto",
-              filter: `blur(${question.blur_level ?? 0}px)`,
-              transform: `scale(${question.pixelation_level ? 1.05 : 1})`,
-              width: question.pixelation_level ? `${100 - (question.pixelation_level * 1.5)}%` : 'auto',
-            }}
-          />
-        </div>
-      )}
+      {imageBlock as any}
 
       {/* Media player (Blind Test) */}
       {question.media_path && (

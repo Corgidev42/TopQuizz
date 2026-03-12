@@ -6,7 +6,7 @@ import JoinView from "./JoinView";
 import Buzzer from "../components/player/Buzzer";
 import AnswerInput from "../components/player/AnswerInput";
 import WaitingScreen from "../components/player/WaitingScreen";
-import { MODULE_LABELS, MODULE_ICONS } from "../types";
+import { MODULE_LABELS, MODULE_ICONS, ModuleType } from "../types";
 
 const getAnswerTimeout = (moduleType: ModuleType | undefined) => {
   switch (moduleType) {

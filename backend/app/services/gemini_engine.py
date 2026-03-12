@@ -10,6 +10,11 @@ from app.config import settings
 from app.models.enums import Difficulty
 
 
+class _TextResponse:
+    def __init__(self, text: str):
+        self.text = text
+
+
 class GeminiEngine:
     def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
@@ -26,6 +31,21 @@ class GeminiEngine:
     def _is_quota_error(self, e: Exception) -> bool:
         msg = str(e).lower()
         return "429" in msg or "quota" in msg or "resourceexhausted" in msg
+
+    async def _ollama_generate_text(self, prompt: str) -> str:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{settings.ollama_base_url.rstrip('/')}/api/generate",
+                json={
+                    "model": settings.ollama_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2},
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return (data.get("response") or "").strip()
 
     def _extract_retry_delay_seconds(self, e: Exception) -> float | None:
         msg = str(e)
@@ -48,6 +68,8 @@ class GeminiEngine:
             return await self.model.generate_content_async(payload)
         except Exception as e:
             if not self._is_quota_error(e):
+                if settings.ollama_enabled and isinstance(payload, str):
+                    return _TextResponse(await self._ollama_generate_text(payload))
                 raise
 
             retry_delay = self._extract_retry_delay_seconds(e)
@@ -65,6 +87,8 @@ class GeminiEngine:
                     if self._is_quota_error(e2):
                         continue
                     raise
+            if settings.ollama_enabled and isinstance(payload, str):
+                return _TextResponse(await self._ollama_generate_text(payload))
             raise
 
     def _parse_json(self, text: str):

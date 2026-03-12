@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
     gemini_fallback_models: str = "gemini-2.0-flash"
+    ollama_enabled: bool = False
+    ollama_base_url: str = "http://host.docker.internal:11434"
+    ollama_model: str = "qwen2.5:7b-instruct"
     host: str = "0.0.0.0"
     port: int = 8000
     media_dir: str = "/app/media"
