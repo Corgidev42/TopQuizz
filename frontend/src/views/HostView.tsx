@@ -14,13 +14,20 @@ export default function HostView() {
   const [creatingGame, setCreatingGame] = useState(false);
   const [loadingNextModule, setLoadingNextModule] = useState(false);
 
+  const phase = gameState?.phase ?? null;
+  useEffect(() => {
+    if (phase !== "module_result") {
+      setLoadingNextModule(false);
+    }
+  }, [phase]);
+
   // Not yet hosting
   if (!gameState) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6">
         <Logo size="md" />
         <p className="text-neutral-400 mt-4 mb-8">Panneau Host</p>
-        
+
         {!connected && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500 rounded-lg text-red-500 flex items-center gap-2">
             <span>⚠️ Déconnecté du serveur</span>
@@ -31,12 +38,11 @@ export default function HostView() {
           onClick={() => {
             setCreatingGame(true);
             emit("host_create_game");
-            // Reset loading state after timeout in case of error
             setTimeout(() => setCreatingGame(false), 5000);
           }}
           disabled={!connected || creatingGame}
           className={`btn-primary text-xl px-10 py-4 flex items-center gap-3 ${
-            (!connected || creatingGame) ? "opacity-50 cursor-not-allowed" : ""
+            !connected || creatingGame ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
           {creatingGame ? (
@@ -52,15 +58,8 @@ export default function HostView() {
     );
   }
 
-  const phase = gameState.phase;
   const hasNextModule =
     gameState.current_module_index + 1 < gameState.total_modules;
-
-  useEffect(() => {
-    if (phase !== "module_result") {
-      setLoadingNextModule(false);
-    }
-  }, [phase]);
 
   return (
     <div className="min-h-screen p-4 md:p-6 max-w-4xl mx-auto">
