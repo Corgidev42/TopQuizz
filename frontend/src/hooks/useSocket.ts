@@ -3,12 +3,7 @@ import { connectSocket, getSocket } from "../socket";
 import { useGameStore } from "../stores/gameStore";
 
 export function useSocket() {
-  const initialized = useRef(false);
-
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-
     const socket = connectSocket();
     const store = useGameStore.getState;
 
