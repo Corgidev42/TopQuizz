@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { useGameStore } from "../stores/gameStore";
 import GameSetup from "../components/host/GameSetup";
@@ -53,6 +53,14 @@ export default function HostView() {
   }
 
   const phase = gameState.phase;
+  const hasNextModule =
+    gameState.current_module_index + 1 < gameState.total_modules;
+
+  useEffect(() => {
+    if (phase !== "module_result") {
+      setLoadingNextModule(false);
+    }
+  }, [phase]);
 
   return (
     <div className="min-h-screen p-4 md:p-6 max-w-4xl mx-auto">
@@ -94,7 +102,7 @@ export default function HostView() {
       {phase === "memory_preview" && (
         <div className="card text-center">
           <div className="text-6xl mb-4">👁️</div>
-          <h2 className="text-3xl font-black mb-4">Master Mémoire</h2>
+          <h2 className="text-3xl font-black mb-4">TopMémoire</h2>
           <p className="text-neutral-400 mb-2">
             Observation en cours sur la TV
           </p>
@@ -191,6 +199,7 @@ export default function HostView() {
             onClick={() => {
               setLoadingNextModule(true);
               emit("host_next_module", { game_id: gameState.id });
+              setTimeout(() => setLoadingNextModule(false), 8000);
             }}
             disabled={loadingNextModule}
             className="btn-primary text-lg px-8 flex items-center justify-center"
@@ -198,7 +207,7 @@ export default function HostView() {
             {loadingNextModule ? (
               <><Spinner /> <span className="ml-3">Chargement...</span></>
             ) : (
-              "Module suivant ▶️"
+              hasNextModule ? "Module suivant ▶️" : "Résultats finaux ▶️"
             )}
           </button>
           </div>

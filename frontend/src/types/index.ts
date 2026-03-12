@@ -87,11 +87,11 @@ export interface Preset {
 }
 
 export const MODULE_LABELS: Record<ModuleType, string> = {
-  master_quiz: "MasterQuiz",
-  master_memory: "Master Mémoire",
-  master_face: "Master Face",
-  master_commu: "Master Commu",
-  blind_test: "Blind Test",
+  master_quiz: "TopQuizz",
+  master_memory: "TopMémoire",
+  master_face: "TopFace",
+  master_commu: "TopCommu",
+  blind_test: "TopBlindtest",
 };
 
 export const MODULE_ICONS: Record<ModuleType, string> = {

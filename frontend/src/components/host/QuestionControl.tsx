@@ -17,6 +17,11 @@ export default function QuestionControl({
   const q = gameState.current_question;
   const phase = gameState.phase;
   const isFace = q?.module_type === "master_face";
+  const isCommu = q?.module_type === "master_commu";
+  const commuAnswers =
+    isCommu && q?.extra_data?.answers
+      ? (q.extra_data.answers as Array<{ answer: string; score: number }>)
+      : null;
 
   return (
     <div className="space-y-4">
@@ -43,12 +48,18 @@ export default function QuestionControl({
                 {q.points}pt{q.points > 1 ? "s" : ""}
               </span>
             </div>
-            <div className="text-sm text-neutral-400">
-              Bonne réponse :{" "}
-              <span className="text-green-400 font-semibold">
-                {q.correct_answer}
-              </span>
-            </div>
+            {isCommu ? (
+              <div className="text-sm text-neutral-400">
+                Réponses possibles ({commuAnswers?.length ?? 0})
+              </div>
+            ) : (
+              <div className="text-sm text-neutral-400">
+                Bonne réponse :{" "}
+                <span className="text-green-400 font-semibold">
+                  {q.correct_answer}
+                </span>
+              </div>
+            )}
           </>
         )}
 
@@ -76,6 +87,25 @@ export default function QuestionControl({
           </span>
         </div>
       </div>
+
+      {isCommu && commuAnswers && (
+        <div className="card">
+          <h3 className="text-sm text-neutral-400 font-semibold mb-3">
+            Réponses possibles
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {commuAnswers.map((a, i) => (
+              <div
+                key={`${a.answer}-${i}`}
+                className="flex items-center justify-between px-4 py-2 rounded-lg bg-surface-light"
+              >
+                <span className="font-semibold">{a.answer}</span>
+                <span className="text-brand-orange font-bold">{a.score}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Player status */}
       <div className="card">

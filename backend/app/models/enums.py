@@ -37,9 +37,9 @@ DIFFICULTY_POINTS: dict[Difficulty, int] = {
 }
 
 MODULE_LABELS: dict[ModuleType, str] = {
-    ModuleType.MASTER_QUIZ: "MasterQuiz",
-    ModuleType.MASTER_MEMORY: "Master Mémoire",
-    ModuleType.MASTER_FACE: "Master Face",
-    ModuleType.MASTER_COMMU: "Master Commu",
-    ModuleType.BLIND_TEST: "Blind Test",
+    ModuleType.MASTER_QUIZ: "TopQuizz",
+    ModuleType.MASTER_MEMORY: "TopMémoire",
+    ModuleType.MASTER_FACE: "TopFace",
+    ModuleType.MASTER_COMMU: "TopCommu",
+    ModuleType.BLIND_TEST: "TopBlindtest",
 }

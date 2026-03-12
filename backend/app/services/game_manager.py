@@ -35,6 +35,8 @@ class GameSession:
         self.commu_answers: list[dict] = []
 
         self.memory_preview: dict | None = None
+        self._prefetched_modules: dict[int, dict] = {}
+        self._prefetch_tasks: dict[int, asyncio.Task] = {}
 
         self.tiebreaker_scores: dict[str, int] = {}
         self._color_index = 0

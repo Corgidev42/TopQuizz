@@ -455,6 +455,143 @@ def register_events(sio: socketio.AsyncServer):
     # Internal helpers
     # ------------------------------------------------------------------
 
+    async def _build_module_data(session: GameSession, module_index: int) -> dict:
+        module_config = session.modules[module_index]
+        gemini = get_gemini()
+
+        if module_config.module_type == ModuleType.MASTER_QUIZ:
+            raw = await gemini.generate_quiz_questions(
+                theme=module_config.theme or "Culture Générale",
+                num=module_config.num_questions,
+                difficulties=module_config.difficulty_mix,
+            )
+            questions: list[Question] = []
+            for q in raw:
+                questions.append(
+                    Question(
+                        id=uuid.uuid4().hex[:8],
+                        module_type=ModuleType.MASTER_QUIZ,
+                        text=q["question"],
+                        options=q.get("options"),
+                        correct_answer=q["correct_answer"],
+                        difficulty=Difficulty(q.get("difficulty", "medium")),
+                    )
+                )
+            return {"module_type": module_config.module_type, "questions": questions}
+
+        if module_config.module_type == ModuleType.MASTER_MEMORY:
+            challenge = await gemini.generate_memory_challenge()
+            qs = challenge.get("questions", []) or []
+            questions = [
+                Question(
+                    id=uuid.uuid4().hex[:8],
+                    module_type=ModuleType.MASTER_MEMORY,
+                    text=mq["question"],
+                    correct_answer=mq["correct_answer"],
+                    difficulty=Difficulty(mq.get("difficulty", "medium")),
+                    extra_data={"description": challenge.get("description", "")},
+                )
+                for mq in qs
+            ]
+            return {
+                "module_type": module_config.module_type,
+                "questions": questions,
+                "memory_image_url": challenge.get("image_url"),
+            }
+
+        if module_config.module_type == ModuleType.MASTER_FACE:
+            celebrities = await gemini.generate_face_challenges(
+                module_config.num_questions
+            )
+            questions: list[Question] = []
+            for celeb in celebrities:
+                if celeb.get("image_url"):
+                    questions.append(
+                        Question(
+                            id=uuid.uuid4().hex[:8],
+                            module_type=ModuleType.MASTER_FACE,
+                            text="Qui est cette personne ?",
+                            correct_answer=celeb["name"],
+                            difficulty=Difficulty(celeb.get("difficulty", "medium")),
+                            image_url=celeb["image_url"],
+                            blur_level=30,
+                            extra_data={
+                                "fun_fact": celeb.get("fun_fact", ""),
+                                "category": celeb.get("category", ""),
+                            },
+                        )
+                    )
+            return {"module_type": module_config.module_type, "questions": questions}
+
+        if module_config.module_type == ModuleType.MASTER_COMMU:
+            commu_qs = await gemini.generate_commu_questions(
+                module_config.num_questions,
+                theme=module_config.theme,
+            )
+            questions: list[Question] = []
+            for q in commu_qs:
+                questions.append(
+                    Question(
+                        id=uuid.uuid4().hex[:8],
+                        module_type=ModuleType.MASTER_COMMU,
+                        text=q["question"],
+                        correct_answer="",
+                        difficulty=Difficulty(q.get("difficulty", "medium")),
+                        extra_data={"answers": q["answers"]},
+                    )
+                )
+            return {"module_type": module_config.module_type, "questions": questions}
+
+        if module_config.module_type == ModuleType.BLIND_TEST:
+            suggestions = await gemini.generate_blindtest_suggestions(
+                num=module_config.num_questions,
+                theme=module_config.theme,
+            )
+            streamer = get_audio_streamer()
+            sem = asyncio.Semaphore(2)
+
+            async def download_one(idx: int, song: dict):
+                async with sem:
+                    audio_path = await streamer.search_and_download(song["search_query"])
+                return idx, song, audio_path
+
+            results = await asyncio.gather(
+                *[download_one(i, s) for i, s in enumerate(suggestions)],
+                return_exceptions=True,
+            )
+
+            ordered = sorted(
+                [x for x in results if not isinstance(x, Exception)],
+                key=lambda x: x[0],
+            )
+
+            questions: list[Question] = []
+            for _, song, audio_path in ordered:
+                if not audio_path:
+                    continue
+                questions.append(
+                    Question(
+                        id=uuid.uuid4().hex[:8],
+                        module_type=ModuleType.BLIND_TEST,
+                        text="Quel est ce titre / artiste ?",
+                        correct_answer=f"{song['artist']} - {song['title']}",
+                        difficulty=Difficulty.MEDIUM,
+                        media_path=audio_path,
+                        extra_data={"artist": song["artist"], "title": song["title"]},
+                    )
+                )
+            return {"module_type": module_config.module_type, "questions": questions}
+
+        return {"module_type": module_config.module_type, "questions": []}
+
+    async def _prefetch_and_store(session: GameSession, module_index: int) -> dict:
+        try:
+            data = await _build_module_data(session, module_index)
+            session._prefetched_modules[module_index] = data
+            return data
+        finally:
+            session._prefetch_tasks.pop(module_index, None)
+
     async def _advance_module(sio_server: socketio.AsyncServer, session: GameSession):
         session.current_module_index += 1
 
@@ -475,72 +612,35 @@ def register_events(sio: socketio.AsyncServer):
         session.current_module_questions = []
         session.memory_preview = None
 
-        gemini = get_gemini()
         start = time.perf_counter()
 
         try:
-            if module_config.module_type == ModuleType.MASTER_QUIZ:
-                await sio_server.emit(
-                    "module_intro",
-                    {
-                        "module_type": module_config.module_type.value,
-                        "module_name": MODULE_LABELS.get(
-                            module_config.module_type, module_config.module_type.value
-                        ),
-                        "num_questions": module_config.num_questions,
-                        "theme": module_config.theme,
-                    },
-                    room=session.id,
-                )
-                raw = await gemini.generate_quiz_questions(
-                    theme=module_config.theme or "Culture Générale",
-                    num=module_config.num_questions,
-                    difficulties=module_config.difficulty_mix,
-                )
-                for q in raw:
-                    session.current_module_questions.append(
-                        Question(
-                            id=uuid.uuid4().hex[:8],
-                            module_type=ModuleType.MASTER_QUIZ,
-                            text=q["question"],
-                            options=q.get("options"),
-                            correct_answer=q["correct_answer"],
-                            difficulty=Difficulty(q.get("difficulty", "medium")),
-                        )
-                    )
+            data = session._prefetched_modules.pop(session.current_module_index, None)
+            if data is None:
+                task = session._prefetch_tasks.get(session.current_module_index)
+                if task is not None:
+                    data = await task
+                    session._prefetch_tasks.pop(session.current_module_index, None)
+                else:
+                    data = await _build_module_data(session, session.current_module_index)
 
-            elif module_config.module_type == ModuleType.MASTER_MEMORY:
-                challenge = await gemini.generate_memory_challenge()
-                questions = challenge.get("questions", []) or []
-                image_url = challenge.get("image_url")
+            session.current_module_questions = data.get("questions", [])
 
-                for mq in questions:
-                    session.current_module_questions.append(
-                        Question(
-                            id=uuid.uuid4().hex[:8],
-                            module_type=ModuleType.MASTER_MEMORY,
-                            text=mq["question"],
-                            correct_answer=mq["correct_answer"],
-                            difficulty=Difficulty(mq.get("difficulty", "medium")),
-                            extra_data={
-                                "description": challenge.get("description", "")
-                            },
-                        )
-                    )
+            if not session.current_module_questions:
+                await _advance_module(sio_server, session)
+                return
 
+            if module_config.module_type == ModuleType.MASTER_MEMORY:
                 countdown_seconds = 5
                 show_seconds = 30
                 session.phase = GamePhase.MEMORY_PREVIEW
                 session.memory_preview = {
-                    "image_url": image_url,
+                    "image_url": data.get("memory_image_url"),
                     "started_at": time.time(),
                     "countdown_seconds": countdown_seconds,
                     "show_seconds": show_seconds,
                 }
-
-                await sio_server.emit(
-                    "game_state", session.to_dict(), room=session.id
-                )
+                await sio_server.emit("game_state", session.to_dict(), room=session.id)
 
                 async def end_preview():
                     await asyncio.sleep(countdown_seconds + show_seconds)
@@ -552,164 +652,22 @@ def register_events(sio: socketio.AsyncServer):
                     ):
                         session.phase = GamePhase.MODULE_INTRO
                         session.memory_preview = None
-                        await sio_server.emit(
-                            "module_intro",
-                            {
-                                "module_type": module_config.module_type.value,
-                                "module_name": MODULE_LABELS.get(
-                                    module_config.module_type,
-                                    module_config.module_type.value,
-                                ),
-                                "num_questions": len(session.current_module_questions),
-                                "theme": None,
-                            },
-                            room=session.id,
-                        )
-                        await sio_server.emit(
-                            "game_state", session.to_dict(), room=session.id
-                        )
+                        await sio_server.emit("game_state", session.to_dict(), room=session.id)
 
                 asyncio.create_task(end_preview())
-                return
+            else:
+                session.phase = GamePhase.MODULE_INTRO
+                await sio_server.emit("game_state", session.to_dict(), room=session.id)
 
-            elif module_config.module_type == ModuleType.MASTER_FACE:
-                await sio_server.emit(
-                    "module_intro",
-                    {
-                        "module_type": module_config.module_type.value,
-                        "module_name": MODULE_LABELS.get(
-                            module_config.module_type, module_config.module_type.value
-                        ),
-                        "num_questions": module_config.num_questions,
-                        "theme": module_config.theme,
-                    },
-                    room=session.id,
-                )
-                celebrities = await gemini.generate_face_challenges(
-                    module_config.num_questions
-                )
-                for celeb in celebrities:
-                    if celeb.get("image_url"):
-                        session.current_module_questions.append(
-                            Question(
-                                id=uuid.uuid4().hex[:8],
-                                module_type=ModuleType.MASTER_FACE,
-                                text="Qui est cette personne ?",
-                                correct_answer=celeb["name"],
-                                difficulty=Difficulty(
-                                    celeb.get("difficulty", "medium")
-                                ),
-                                image_url=celeb["image_url"],
-                                blur_level=30,
-                                extra_data={
-                                    "fun_fact": celeb.get("fun_fact", ""),
-                                    "category": celeb.get("category", ""),
-                                },
-                            )
-                        )
-
-            elif module_config.module_type == ModuleType.MASTER_COMMU:
-                await sio_server.emit(
-                    "module_intro",
-                    {
-                        "module_type": module_config.module_type.value,
-                        "module_name": MODULE_LABELS.get(
-                            module_config.module_type, module_config.module_type.value
-                        ),
-                        "num_questions": module_config.num_questions,
-                        "theme": module_config.theme,
-                    },
-                    room=session.id,
-                )
-                commu_qs = await gemini.generate_commu_questions(
-                    module_config.num_questions,
-                    theme=module_config.theme,
-                )
-                for q in commu_qs:
-                    session.current_module_questions.append(
-                        Question(
-                            id=uuid.uuid4().hex[:8],
-                            module_type=ModuleType.MASTER_COMMU,
-                            text=q["question"],
-                            correct_answer="",
-                            difficulty=Difficulty(q.get("difficulty", "medium")),
-                            extra_data={"answers": q["answers"]},
-                        )
-                    )
-
-            elif module_config.module_type == ModuleType.BLIND_TEST:
-                await sio_server.emit(
-                    "module_intro",
-                    {
-                        "module_type": module_config.module_type.value,
-                        "module_name": MODULE_LABELS.get(
-                            module_config.module_type, module_config.module_type.value
-                        ),
-                        "num_questions": module_config.num_questions,
-                        "theme": module_config.theme,
-                    },
-                    room=session.id,
-                )
-                suggestions = await gemini.generate_blindtest_suggestions(
-                    num=module_config.num_questions,
-                    theme=module_config.theme
-                )
-
-                streamer = get_audio_streamer()
-
-                await sio_server.emit(
-                    "module_loading_progress",
-                    {"message": f"Préparation des morceaux 0/{len(suggestions)}..."},
-                    room=session.id,
-                )
-
-                sem = asyncio.Semaphore(2)
-                progress_lock = asyncio.Lock()
-                completed = 0
-
-                async def download_one(idx: int, song: dict):
-                    nonlocal completed
-                    async with sem:
-                        audio_path = await streamer.search_and_download(song["search_query"])
-                    async with progress_lock:
-                        completed += 1
-                        await sio_server.emit(
-                            "module_loading_progress",
-                            {"message": f"Préparation des morceaux {completed}/{len(suggestions)}..."},
-                            room=session.id,
-                        )
-                    return idx, song, audio_path
-
-                results = await asyncio.gather(
-                    *[download_one(i, s) for i, s in enumerate(suggestions)],
-                    return_exceptions=True,
-                )
-
-                for r in sorted(
-                    [x for x in results if not isinstance(x, Exception)],
-                    key=lambda x: x[0],
+            next_index = session.current_module_index + 1
+            if next_index < len(session.modules):
+                if (
+                    next_index not in session._prefetched_modules
+                    and next_index not in session._prefetch_tasks
                 ):
-                    _, song, audio_path = r
-                    if not audio_path:
-                        continue
-                    session.current_module_questions.append(
-                        Question(
-                            id=uuid.uuid4().hex[:8],
-                            module_type=ModuleType.BLIND_TEST,
-                            text="Quel est ce titre / artiste ?",
-                            correct_answer=f"{song['artist']} - {song['title']}",
-                            difficulty=Difficulty.MEDIUM,
-                            media_path=audio_path,
-                            extra_data={
-                                "artist": song["artist"],
-                                "title": song["title"],
-                            },
-                        )
+                    session._prefetch_tasks[next_index] = asyncio.create_task(
+                        _prefetch_and_store(session, next_index)
                     )
-
-            # If after all generation, no questions were created, advance again.
-            if not session.current_module_questions:
-                await _advance_module(sio_server, session)
 
         except Exception as e:
             print(f"[Error generating questions] {e}")
@@ -726,10 +684,6 @@ def register_events(sio: socketio.AsyncServer):
                 f"[Module] {module_config.module_type.value} ready in {elapsed:.2f}s"
                 f" ({len(session.current_module_questions)}/{module_config.num_questions})"
             )
-
-        await sio_server.emit(
-            "game_state", session.to_dict(), room=session.id
-        )
 
     async def _start_tiebreaker(
         sio_server: socketio.AsyncServer,
