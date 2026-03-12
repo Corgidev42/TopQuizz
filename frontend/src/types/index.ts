@@ -1,6 +1,7 @@
 export type GamePhase =
   | "lobby"
   | "playing"
+  | "memory_preview"
   | "module_intro"
   | "buzzer_open"
   | "answering"
@@ -63,6 +64,12 @@ export interface GameState {
   buzzer_open: boolean;
   eliminated_this_question: string[];
   commu_revealed: string[];
+  memory_preview?: {
+    image_url?: string | null;
+    started_at: number;
+    countdown_seconds: number;
+    show_seconds: number;
+  } | null;
   tiebreaker_scores: Record<string, number>;
 }
 

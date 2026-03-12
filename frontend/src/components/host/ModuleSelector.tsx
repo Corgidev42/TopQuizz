@@ -70,80 +70,88 @@ export default function ModuleSelector({ modules, onChange }: Props) {
             ))}
           </select>
 
-          {/* Theme (for quiz) */}
           {(mod.module_type === "master_quiz" ||
-            mod.module_type === "master_memory") && (
+            mod.module_type === "master_commu" ||
+            mod.module_type === "blind_test") && (
             <input
               type="text"
               value={mod.theme ?? ""}
               onChange={(e) => updateModule(i, { theme: e.target.value })}
-              placeholder="Thème (ex: Pop Culture, Science...)"
+              placeholder={
+                mod.module_type === "master_commu"
+                  ? "Thème (ex: nourriture, sport, vacances...)"
+                  : mod.module_type === "blind_test"
+                    ? "Thème (ex: anime, hits 2000, rap FR...)"
+                    : "Thème (ex: Pop Culture, Science...)"
+              }
               className="input-field"
             />
           )}
 
-          {/* Number of questions */}
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-neutral-400 whitespace-nowrap">
-              Questions :
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={20}
-              value={mod.num_questions}
-              onChange={(e) =>
-                updateModule(i, {
-                  num_questions: parseInt(e.target.value) || 1,
-                })
-              }
-              className="input-field w-24"
-            />
-          </div>
-
-          {/* Difficulty mix */}
-          <div>
-            <label className="text-sm text-neutral-400 mb-1 block">
-              Difficultés :
-            </label>
-            <div className="flex gap-2">
-              {ALL_DIFFICULTIES.map((d) => {
-                const active = mod.difficulty_mix.includes(d);
-                return (
-                  <button
-                    key={d}
-                    onClick={() => {
-                      const newMix = active
-                        ? mod.difficulty_mix.filter((x) => x !== d)
-                        : [...mod.difficulty_mix, d];
-                      if (newMix.length > 0) {
-                        updateModule(i, { difficulty_mix: newMix });
-                      }
-                    }}
-                    className={`badge transition-colors cursor-pointer ${
-                      active
-                        ? d === "easy"
-                          ? "bg-green-500/30 text-green-400"
-                          : d === "medium"
-                            ? "bg-yellow-500/30 text-yellow-400"
-                            : d === "hard"
-                              ? "bg-red-500/30 text-red-400"
-                              : "bg-purple-500/30 text-purple-400"
-                        : "bg-surface-light text-neutral-500"
-                    }`}
-                  >
-                    {d === "easy"
-                      ? "Facile"
-                      : d === "medium"
-                        ? "Moyen"
-                        : d === "hard"
-                          ? "Dur"
-                          : "Expert"}
-                  </button>
-                );
-              })}
+          {mod.module_type !== "master_memory" && (
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-neutral-400 whitespace-nowrap">
+                Questions :
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={mod.num_questions}
+                onChange={(e) =>
+                  updateModule(i, {
+                    num_questions: parseInt(e.target.value) || 1,
+                  })
+                }
+                className="input-field w-24"
+              />
             </div>
-          </div>
+          )}
+
+          {mod.module_type !== "master_memory" && (
+            <div>
+              <label className="text-sm text-neutral-400 mb-1 block">
+                Difficultés :
+              </label>
+              <div className="flex gap-2">
+                {ALL_DIFFICULTIES.map((d) => {
+                  const active = mod.difficulty_mix.includes(d);
+                  return (
+                    <button
+                      key={d}
+                      onClick={() => {
+                        const newMix = active
+                          ? mod.difficulty_mix.filter((x) => x !== d)
+                          : [...mod.difficulty_mix, d];
+                        if (newMix.length > 0) {
+                          updateModule(i, { difficulty_mix: newMix });
+                        }
+                      }}
+                      className={`badge transition-colors cursor-pointer ${
+                        active
+                          ? d === "easy"
+                            ? "bg-green-500/30 text-green-400"
+                            : d === "medium"
+                              ? "bg-yellow-500/30 text-yellow-400"
+                              : d === "hard"
+                                ? "bg-red-500/30 text-red-400"
+                                : "bg-purple-500/30 text-purple-400"
+                          : "bg-surface-light text-neutral-500"
+                      }`}
+                    >
+                      {d === "easy"
+                        ? "Facile"
+                        : d === "medium"
+                          ? "Moyen"
+                          : d === "hard"
+                            ? "Dur"
+                            : "Expert"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       ))}
 

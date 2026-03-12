@@ -120,6 +120,24 @@ export default function PlayerView() {
     );
   }
 
+  if (phase === "memory_preview") {
+    const totalLeft = Math.max(
+      0,
+      Math.ceil(
+        (gameState.memory_preview?.started_at ?? Date.now() / 1000) +
+          (gameState.memory_preview?.countdown_seconds ?? 5) +
+          (gameState.memory_preview?.show_seconds ?? 30) -
+          Date.now() / 1000
+      )
+    );
+    return (
+      <WaitingScreen
+        message={`Regarde l'image sur la TV (${totalLeft}s)`}
+        emoji="👁️"
+      />
+    );
+  }
+
   // MODULE INTRO
   if (phase === "module_intro") {
     const mod = gameState.current_module;

@@ -4,6 +4,7 @@ from enum import Enum
 class GamePhase(str, Enum):
     LOBBY = "lobby"
     PLAYING = "playing"
+    MEMORY_PREVIEW = "memory_preview"
     MODULE_INTRO = "module_intro"
     BUZZER_OPEN = "buzzer_open"
     ANSWERING = "answering"

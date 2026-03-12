@@ -34,6 +34,8 @@ class GameSession:
         self.commu_revealed: list[str] = []
         self.commu_answers: list[dict] = []
 
+        self.memory_preview: dict | None = None
+
         self.tiebreaker_scores: dict[str, int] = {}
         self._color_index = 0
 
@@ -178,6 +180,7 @@ class GameSession:
             "buzzer_open": self.buzzer_open,
             "eliminated_this_question": self.eliminated_this_question,
             "commu_revealed": self.commu_revealed,
+            "memory_preview": self.memory_preview,
             "tiebreaker_scores": self.tiebreaker_scores,
         }
 

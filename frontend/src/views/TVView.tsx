@@ -7,6 +7,7 @@ import Scoreboard from "../components/tv/Scoreboard";
 import PlayerList from "../components/tv/PlayerList";
 import Logo from "../components/shared/Logo";
 import { MODULE_LABELS, MODULE_ICONS } from "../types";
+import MemoryPreview from "../components/tv/MemoryPreview";
 
 export default function TVView() {
   const { emit } = useSocket();
@@ -52,6 +53,20 @@ export default function TVView() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (phase === "memory_preview") {
+    return (
+      <MemoryPreview
+        data={
+          gameState.memory_preview ?? {
+            started_at: Date.now() / 1000,
+            countdown_seconds: 5,
+            show_seconds: 30,
+          }
+        }
+      />
     );
   }
 

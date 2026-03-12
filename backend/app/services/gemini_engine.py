@@ -178,8 +178,13 @@ Les questions doivent être engageantes, fun et variées. En français."""
 - Texte ou panneaux visibles
 - Météo, éclairage, ambiance
 
-Puis génère 5 questions d'observation/mémoire sur des détails spécifiques de cette image.
-Les questions doivent tester l'observation fine.
+Puis génère un set de questions d'observation/mémoire sur des détails spécifiques de cette image.
+Objectif : blind test de mémoire, questions fun, précises et variées.
+Contraintes :
+- Génère entre 6 et 10 questions.
+- Inclus exactement 1 question piège (sur un élément absent de l'image). La bonne réponse doit être "0" ou "Aucun" (selon ce qui est le plus naturel).
+- Mélange des questions de type comptage (combien de...), détails (couleur, position), et scènes (qui fait quoi).
+- Les questions doivent être en français.
 
 Retourne UNIQUEMENT du JSON valide :
 {
@@ -262,9 +267,11 @@ Inclus des célébrités internationales ET françaises. Le nom doit être celui
 
         return celebrities
 
-    async def generate_commu_questions(self, num: int) -> list[dict]:
+    async def generate_commu_questions(self, num: int, theme: str | None = None) -> list[dict]:
         """Generate 'Une Famille en Or' style survey questions."""
+        theme_line = f'Thème imposé : "{theme}". Les questions DOIVENT respecter ce thème.' if theme else "Aucun thème imposé : questions variées et dans l'air du temps."
         prompt = f"""Génère {num} questions de type sondage pour un jeu similaire à "Une Famille en Or".
+{theme_line}
 Chaque question doit commencer par "Citez...", "Nommez..." ou "Quel est...".
 Pour chaque question, génère les 6 réponses les plus probables d'une communauté.
 Classe les réponses par probabilité, la première recevant un score de 100.

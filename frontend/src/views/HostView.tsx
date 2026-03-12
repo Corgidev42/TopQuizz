@@ -91,6 +91,28 @@ export default function HostView() {
         />
       )}
 
+      {phase === "memory_preview" && (
+        <div className="card text-center">
+          <div className="text-6xl mb-4">👁️</div>
+          <h2 className="text-3xl font-black mb-4">Master Mémoire</h2>
+          <p className="text-neutral-400 mb-2">
+            Observation en cours sur la TV
+          </p>
+          <p className="text-neutral-500">
+            {Math.max(
+              0,
+              Math.ceil(
+                (gameState.memory_preview?.started_at ?? Date.now() / 1000) +
+                  (gameState.memory_preview?.countdown_seconds ?? 5) +
+                  (gameState.memory_preview?.show_seconds ?? 30) -
+                  Date.now() / 1000
+              )
+            )}
+            s restantes
+          </p>
+        </div>
+      )}
+
       {/* MODULE INTRO */}
       {phase === "module_intro" && (
         <div className="card text-center">
