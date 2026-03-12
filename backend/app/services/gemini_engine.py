@@ -2,6 +2,7 @@ import json
 import re
 import httpx
 import asyncio
+import time
 from io import BytesIO
 from PIL import Image
 import google.generativeai as genai
@@ -33,14 +34,19 @@ class GeminiEngine:
         return "429" in msg or "quota" in msg or "resourceexhausted" in msg
 
     async def _ollama_generate_text(self, prompt: str) -> str:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             resp = await client.post(
                 f"{settings.ollama_base_url.rstrip('/')}/api/generate",
                 json={
                     "model": settings.ollama_model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {"temperature": 0.2},
+                    "keep_alive": "10m",
+                    "options": {
+                        "temperature": 0.2,
+                        "num_predict": 900,
+                        "num_ctx": 4096,
+                    },
                 },
             )
             resp.raise_for_status()
@@ -64,12 +70,22 @@ class GeminiEngine:
         return None
 
     async def _generate_content(self, payload):
+        start = time.perf_counter()
         try:
-            return await self.model.generate_content_async(payload)
+            result = await self.model.generate_content_async(payload)
+            elapsed = time.perf_counter() - start
+            if elapsed >= 3.0:
+                print(f"[AI] Gemini({self._model_name}) ok in {elapsed:.2f}s")
+            return result
         except Exception as e:
             if not self._is_quota_error(e):
                 if settings.ollama_enabled and isinstance(payload, str):
-                    return _TextResponse(await self._ollama_generate_text(payload))
+                    text = await self._ollama_generate_text(payload)
+                    elapsed = time.perf_counter() - start
+                    print(
+                        f"[AI] Gemini error -> Ollama({settings.ollama_model}) in {elapsed:.2f}s"
+                    )
+                    return _TextResponse(text)
                 raise
 
             retry_delay = self._extract_retry_delay_seconds(e)
@@ -82,13 +98,22 @@ class GeminiEngine:
                 try:
                     self._model_name = candidate
                     self.model = genai.GenerativeModel(candidate)
-                    return await self.model.generate_content_async(payload)
+                    result = await self.model.generate_content_async(payload)
+                    elapsed = time.perf_counter() - start
+                    if elapsed >= 3.0:
+                        print(f"[AI] Gemini fallback({self._model_name}) ok in {elapsed:.2f}s")
+                    return result
                 except Exception as e2:
                     if self._is_quota_error(e2):
                         continue
                     raise
             if settings.ollama_enabled and isinstance(payload, str):
-                return _TextResponse(await self._ollama_generate_text(payload))
+                text = await self._ollama_generate_text(payload)
+                elapsed = time.perf_counter() - start
+                print(
+                    f"[AI] Gemini quota -> Ollama({settings.ollama_model}) in {elapsed:.2f}s"
+                )
+                return _TextResponse(text)
             raise
 
     def _parse_json(self, text: str):
@@ -203,29 +228,37 @@ Inclus des célébrités internationales ET françaises. Le nom doit être celui
         response = await self._generate_content(prompt)
         celebrities = self._parse_json(response.text)
 
-        async with httpx.AsyncClient() as client:
-            for celeb in celebrities:
-                wiki_name = celeb.get(
-                    "wikipedia_name", celeb["name"].replace(" ", "_")
-                )
+        sem = asyncio.Semaphore(8)
+
+        async def fetch_image_url(client: httpx.AsyncClient, wiki_name: str) -> str:
+            async with sem:
                 try:
                     resp = await client.get(
                         f"https://en.wikipedia.org/api/rest_v1/page/summary/{wiki_name}",
                         headers={"User-Agent": "TopQuizz/1.0"},
                     )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        celeb["image_url"] = data.get("originalimage", {}).get(
-                            "source", ""
-                        )
-                        if not celeb["image_url"]:
-                            celeb["image_url"] = data.get("thumbnail", {}).get(
-                                "source", ""
-                            )
-                    else:
-                        celeb["image_url"] = ""
+                    if resp.status_code != 200:
+                        return ""
+                    data = resp.json()
+                    url = data.get("originalimage", {}).get("source", "")
+                    if not url:
+                        url = data.get("thumbnail", {}).get("source", "")
+                    return url or ""
                 except Exception:
+                    return ""
+
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            tasks = []
+            for celeb in celebrities:
+                wiki_name = celeb.get("wikipedia_name", celeb["name"].replace(" ", "_"))
+                tasks.append(fetch_image_url(client, wiki_name))
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for celeb, r in zip(celebrities, results):
+                if isinstance(r, Exception):
                     celeb["image_url"] = ""
+                else:
+                    celeb["image_url"] = r
 
         return celebrities
 

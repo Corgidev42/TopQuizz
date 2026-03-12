@@ -2,6 +2,7 @@ import uuid
 import os
 import random
 import asyncio
+import time
 
 import socketio
 
@@ -477,6 +478,7 @@ def register_events(sio: socketio.AsyncServer):
         )
 
         gemini = get_gemini()
+        start = time.perf_counter()
 
         try:
             if module_config.module_type == ModuleType.MASTER_QUIZ:
@@ -558,44 +560,62 @@ def register_events(sio: socketio.AsyncServer):
                     )
 
             elif module_config.module_type == ModuleType.BLIND_TEST:
-                # 1. Ask Gemini for popular songs
                 suggestions = await gemini.generate_blindtest_suggestions(
                     num=module_config.num_questions,
                     theme=module_config.theme
                 )
 
                 streamer = get_audio_streamer()
-                
-                # 2. Download audio for each suggestion
-                for i, song in enumerate(suggestions):
-                    print(f"[BlindTest] Downloading {song['artist']} - {song['title']}...")
-                    
-                    # Notify clients about progress without spoiling
-                    await sio_server.emit(
-                        "module_loading_progress",
-                        {"message": f"Préparation du morceau {i + 1}/{len(suggestions)}..."},
-                        room=session.id
-                    )
 
-                    audio_path = await streamer.search_and_download(song['search_query'])
-                    
-                    if audio_path:
-                        session.current_module_questions.append(
-                            Question(
-                                id=uuid.uuid4().hex[:8],
-                                module_type=ModuleType.BLIND_TEST,
-                                text="Quel est ce titre / artiste ?",
-                                correct_answer=f"{song['artist']} - {song['title']}",
-                                difficulty=Difficulty.MEDIUM,
-                                media_path=audio_path,
-                                extra_data={
-                                    "artist": song['artist'],
-                                    "title": song['title']
-                                },
-                            )
+                await sio_server.emit(
+                    "module_loading_progress",
+                    {"message": f"Préparation des morceaux 0/{len(suggestions)}..."},
+                    room=session.id,
+                )
+
+                sem = asyncio.Semaphore(2)
+                progress_lock = asyncio.Lock()
+                completed = 0
+
+                async def download_one(idx: int, song: dict):
+                    nonlocal completed
+                    async with sem:
+                        audio_path = await streamer.search_and_download(song["search_query"])
+                    async with progress_lock:
+                        completed += 1
+                        await sio_server.emit(
+                            "module_loading_progress",
+                            {"message": f"Préparation des morceaux {completed}/{len(suggestions)}..."},
+                            room=session.id,
                         )
-                    else:
-                        print(f"[BlindTest] Failed to download {song['search_query']}")
+                    return idx, song, audio_path
+
+                results = await asyncio.gather(
+                    *[download_one(i, s) for i, s in enumerate(suggestions)],
+                    return_exceptions=True,
+                )
+
+                for r in sorted(
+                    [x for x in results if not isinstance(x, Exception)],
+                    key=lambda x: x[0],
+                ):
+                    _, song, audio_path = r
+                    if not audio_path:
+                        continue
+                    session.current_module_questions.append(
+                        Question(
+                            id=uuid.uuid4().hex[:8],
+                            module_type=ModuleType.BLIND_TEST,
+                            text="Quel est ce titre / artiste ?",
+                            correct_answer=f"{song['artist']} - {song['title']}",
+                            difficulty=Difficulty.MEDIUM,
+                            media_path=audio_path,
+                            extra_data={
+                                "artist": song["artist"],
+                                "title": song["title"],
+                            },
+                        )
+                    )
 
             # If after all generation, no questions were created, advance again.
             if not session.current_module_questions:
@@ -609,6 +629,13 @@ def register_events(sio: socketio.AsyncServer):
                 room=session.id,
             )
             return
+
+        elapsed = time.perf_counter() - start
+        if elapsed >= 2.0:
+            print(
+                f"[Module] {module_config.module_type.value} ready in {elapsed:.2f}s"
+                f" ({len(session.current_module_questions)}/{module_config.num_questions})"
+            )
 
         await sio_server.emit(
             "game_state", session.to_dict(), room=session.id
