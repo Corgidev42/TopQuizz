@@ -33,25 +33,11 @@ class GeminiEngine:
         msg = str(e).lower()
         return "429" in msg or "quota" in msg or "resourceexhausted" in msg
 
-    async def _ollama_generate_text(self, prompt: str) -> str:
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_base_url.rstrip('/')}/api/generate",
-                json={
-                    "model": settings.ollama_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "keep_alive": "10m",
-                    "options": {
-                        "temperature": 0.2,
-                        "num_predict": 900,
-                        "num_ctx": 4096,
-                    },
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return (data.get("response") or "").strip()
+    async def _ollama_generate_text(self, prompt: str) -> str:  # deprecated
+        raise RuntimeError(
+            "L'intégration directe Ollama depuis GeminiEngine est désactivée. "
+            "Utilise AIRouter/OllamaEngine à la place."
+        )
 
     def _extract_retry_delay_seconds(self, e: Exception) -> float | None:
         msg = str(e)
@@ -78,14 +64,9 @@ class GeminiEngine:
                 print(f"[AI] Gemini({self._model_name}) ok in {elapsed:.2f}s")
             return result
         except Exception as e:
+            # Plus de fallback automatique vers Ollama ici :
+            # si Gemini échoue, on remonte proprement l'erreur.
             if not self._is_quota_error(e):
-                if settings.ollama_enabled and isinstance(payload, str):
-                    text = await self._ollama_generate_text(payload)
-                    elapsed = time.perf_counter() - start
-                    print(
-                        f"[AI] Gemini error -> Ollama({settings.ollama_model}) in {elapsed:.2f}s"
-                    )
-                    return _TextResponse(text)
                 raise
 
             retry_delay = self._extract_retry_delay_seconds(e)
@@ -107,13 +88,6 @@ class GeminiEngine:
                     if self._is_quota_error(e2):
                         continue
                     raise
-            if settings.ollama_enabled and isinstance(payload, str):
-                text = await self._ollama_generate_text(payload)
-                elapsed = time.perf_counter() - start
-                print(
-                    f"[AI] Gemini quota -> Ollama({settings.ollama_model}) in {elapsed:.2f}s"
-                )
-                return _TextResponse(text)
             raise
 
     def _parse_json(self, text: str):

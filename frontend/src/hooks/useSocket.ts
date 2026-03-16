@@ -25,15 +25,20 @@ export function useSocket() {
     };
 
     const onGameCreated = (data: any) => {
+      const origin = window.location.origin.replace(/\/$/, "");
+      const joinUrlBase =
+        data?.game_id != null
+          ? `${origin}/play?game=${String(data.game_id).toUpperCase()}`
+          : data.join_url;
+
       useGameStore.setState({
         gameId: data.game_id,
-        joinUrl: data.join_url,
+        joinUrl: joinUrlBase,
         presets: data.presets ?? [],
       });
 
-      // Replace backend-computed URL (often Docker IP) with a LAN-friendly one
       if (data?.game_id) {
-        pickBestJoinUrl(data.game_id, data.join_url)
+        pickBestJoinUrl(data.game_id, joinUrlBase)
           .then((better) => {
             if (better) useGameStore.setState({ joinUrl: better });
           })
@@ -42,10 +47,16 @@ export function useSocket() {
     };
 
     const onTvConnected = (data: any) => {
-      useGameStore.setState({ gameId: data.game_id, joinUrl: data.join_url });
+      const origin = window.location.origin.replace(/\/$/, "");
+      const joinUrlBase =
+        data?.game_id != null
+          ? `${origin}/play?game=${String(data.game_id).toUpperCase()}`
+          : data.join_url;
+
+      useGameStore.setState({ gameId: data.game_id, joinUrl: joinUrlBase });
 
       if (data?.game_id) {
-        pickBestJoinUrl(data.game_id, data.join_url)
+        pickBestJoinUrl(data.game_id, joinUrlBase)
           .then((better) => {
             if (better) useGameStore.setState({ joinUrl: better });
           })

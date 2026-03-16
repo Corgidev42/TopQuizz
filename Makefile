@@ -18,8 +18,9 @@ help:
 	@echo "  make shell-frontend  - Open a shell in the frontend container"
 	@echo "  make clean           - Remove unused Docker images and volumes"
 
-up:
-	docker compose up -d
+up: 
+	TOPQUIZZ_LOCAL_IP=$$(ipconfig getifaddr en0) docker compose up -d
+	open "https://$$(ipconfig getifaddr en0)/host"
 
 down:
 	docker compose down

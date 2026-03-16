@@ -16,11 +16,6 @@ function scoreHost(host: string): number {
   return 1;
 }
 
-export function buildJoinUrl(host: string, gameId: string, port = 3000): string {
-  const safeGameId = (gameId || "").toUpperCase();
-  return `http://${host}:${port}/play?game=${encodeURIComponent(safeGameId)}`;
-}
-
 export async function detectLanHostCandidates(): Promise<string[]> {
   const candidates = new Set<string>();
 
@@ -71,15 +66,36 @@ export async function detectLanHostCandidates(): Promise<string[]> {
   return [...candidates].sort((a, b) => scoreHost(b) - scoreHost(a));
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
 export async function pickBestJoinUrl(
   gameId: string,
   fallbackUrl?: string | null
 ): Promise<string | null> {
+  const loc = window.location;
+  const protocol = loc.protocol || "http:";
+  const basePort = loc.port ? `:${loc.port}` : "";
+  const safeGameId = (gameId || "").toUpperCase();
+  const currentHost = loc.hostname || "";
+
+  // If already served on a LAN hostname/IP (or a real domain), keep it.
+  if (currentHost && !isLoopbackHost(currentHost)) {
+    return `${protocol}//${currentHost}${basePort}/play?game=${encodeURIComponent(
+      safeGameId
+    )}`;
+  }
+
+  // Otherwise (localhost), try to discover a LAN IP
   const candidates = await detectLanHostCandidates();
+
   if (candidates.length > 0) {
     const best = candidates[0];
-    // If we're already on LAN/IP, keep same host; otherwise prefer detected LAN IP
-    return buildJoinUrl(best, gameId, 3000);
+    // Garder protocole/port actuels, ne remplacer que le hostname
+    return `${protocol}//${best}${basePort}/play?game=${encodeURIComponent(
+      safeGameId
+    )}`;
   }
   return fallbackUrl ?? null;
 }

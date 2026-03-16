@@ -79,13 +79,17 @@ Un `Makefile` est disponible pour simplifier la gestion des conteneurs :
 
 ### Accès
 
-| Interface | URL | Usage |
-|-----------|-----|-------|
-| **Host** | `http://localhost:3000/host` | Contrôle la partie depuis ton Mac |
-| **TV** | `http://localhost:3000/tv?game=CODE` | Affichage HDMI grand écran |
+> 💡 Toujours utiliser l’IP locale de ta machine, **jamais `localhost`**, pour que les téléphones puissent se connecter.
+>
+> Exemple d’IP LAN : `192.168.144.4` (visible dans les réglages Réseau de macOS ou via `ipconfig getifaddr en0`).
+
+| Interface | URL (exemple) | Usage |
+|-----------|---------------|-------|
+| **Host** | `https://192.168.144.4/host` | Contrôle la partie depuis ton Mac |
+| **TV** | `https://192.168.144.4/tv?game=CODE` | Affichage HDMI grand écran |
 | **Joueur** | Scanne le QR Code sur la TV ou ouvre le lien mobile affiché sur la TV/Host | Buzzer + réponses depuis le téléphone |
 
-Sur la TV (et dans le panneau Host), un **lien “play” + QR code** sont générés automatiquement en utilisant l’IP LAN détectée (ex: `http://192.168.x.x:3000/play?game=CODE`), ce qui évite les problèmes de `localhost`/Docker inaccessibles depuis le téléphone.
+Sur la TV (et dans le panneau Host), un **lien “play” + QR code** sont générés automatiquement à partir de l’URL que tu utilises (ex: `https://192.168.144.4/play?game=CODE`), ce qui évite les problèmes de `localhost`/Docker inaccessibles depuis le téléphone.
 
 ## 🎯 Système de Scoring
 
