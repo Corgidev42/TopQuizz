@@ -63,12 +63,7 @@ export default function GameSetup({
   const loadOllamaModels = async () => {
     setLoadingModels(true);
     try {
-      const isViteDev = window.location.port === "3000";
-      const base =
-        isViteDev && window.location.hostname
-          ? `http://${window.location.hostname}:8000`
-          : "";
-      const resp = await fetch(`${base}/api/ai/ollama/models`);
+      const resp = await fetch("/api/ai/ollama/models");
       const data = await resp.json();
       const models: string[] = Array.isArray(data?.models) ? data.models : [];
       setOllamaModels(models);
