@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from "react";
 import { connectSocket, getSocket } from "../socket";
 import { useGameStore } from "../stores/gameStore";
+import { pickBestJoinUrl } from "../utils/network";
 
 export function useSocket() {
   useEffect(() => {
@@ -29,10 +30,27 @@ export function useSocket() {
         joinUrl: data.join_url,
         presets: data.presets ?? [],
       });
+
+      // Replace backend-computed URL (often Docker IP) with a LAN-friendly one
+      if (data?.game_id) {
+        pickBestJoinUrl(data.game_id, data.join_url)
+          .then((better) => {
+            if (better) useGameStore.setState({ joinUrl: better });
+          })
+          .catch(() => {});
+      }
     };
 
     const onTvConnected = (data: any) => {
       useGameStore.setState({ gameId: data.game_id, joinUrl: data.join_url });
+
+      if (data?.game_id) {
+        pickBestJoinUrl(data.game_id, data.join_url)
+          .then((better) => {
+            if (better) useGameStore.setState({ joinUrl: better });
+          })
+          .catch(() => {});
+      }
     };
 
     const onJoined = (data: any) => {
@@ -42,6 +60,7 @@ export function useSocket() {
     const onError = (data: any) => {
       useGameStore.setState({
         notification: { type: "error", message: data.message },
+        lastErrorAt: Date.now(),
       });
       setTimeout(() => useGameStore.setState({ notification: null }), 4000);
     };

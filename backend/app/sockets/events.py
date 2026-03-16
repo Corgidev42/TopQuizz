@@ -7,7 +7,7 @@ import time
 import socketio
 
 from app.services.game_manager import game_manager, GameSession, DEFAULT_PRESETS
-from app.services.gemini_engine import get_gemini
+from app.services.ai_router import get_ai_for_session
 from app.services.audio_streamer import get_audio_streamer
 from app.services.fuzzy_match import fuzzy_match
 from app.models.enums import (
@@ -72,6 +72,12 @@ def register_events(sio: socketio.AsyncServer):
 
         modules_data = data.get("modules", [])
         preset_name = data.get("preset")
+        ai = data.get("ai") or {}
+        provider = (ai.get("provider") or "gemini").strip().lower()
+        if provider not in ("gemini", "ollama"):
+            provider = "gemini"
+        session.ai_provider = provider
+        session.ollama_model = (ai.get("ollama_model") or "").strip() or None
 
         if preset_name:
             preset = next(
@@ -351,8 +357,8 @@ def register_events(sio: socketio.AsyncServer):
 
         # ---- Master Commu special handling ----
         if question.module_type == ModuleType.MASTER_COMMU:
-            gemini = get_gemini()
-            matched = await gemini.check_commu_answer(session.commu_answers, answer)
+            ai = get_ai_for_session(session)
+            matched = await ai.check_commu_answer(session.commu_answers, answer)
 
             if matched and matched["answer"] not in session.commu_revealed:
                 session.commu_revealed.append(matched["answer"])
@@ -407,8 +413,8 @@ def register_events(sio: socketio.AsyncServer):
         else:
             is_correct = fuzzy_match(question.correct_answer, answer)
             if not is_correct:
-                gemini = get_gemini()
-                is_correct = await gemini.check_answer(
+                ai = get_ai_for_session(session)
+                is_correct = await ai.check_answer(
                     question.correct_answer, answer
                 )
 
@@ -457,10 +463,10 @@ def register_events(sio: socketio.AsyncServer):
 
     async def _build_module_data(session: GameSession, module_index: int) -> dict:
         module_config = session.modules[module_index]
-        gemini = get_gemini()
+        ai = get_ai_for_session(session)
 
         if module_config.module_type == ModuleType.MASTER_QUIZ:
-            raw = await gemini.generate_quiz_questions(
+            raw = await ai.generate_quiz_questions(
                 theme=module_config.theme or "Culture Générale",
                 num=module_config.num_questions,
                 difficulties=module_config.difficulty_mix,
@@ -480,7 +486,7 @@ def register_events(sio: socketio.AsyncServer):
             return {"module_type": module_config.module_type, "questions": questions}
 
         if module_config.module_type == ModuleType.MASTER_MEMORY:
-            challenge = await gemini.generate_memory_challenge()
+            challenge = await ai.generate_memory_challenge()
             qs = challenge.get("questions", []) or []
             questions = [
                 Question(
@@ -500,7 +506,7 @@ def register_events(sio: socketio.AsyncServer):
             }
 
         if module_config.module_type == ModuleType.MASTER_FACE:
-            celebrities = await gemini.generate_face_challenges(
+            celebrities = await ai.generate_face_challenges(
                 module_config.num_questions
             )
             questions: list[Question] = []
@@ -524,7 +530,7 @@ def register_events(sio: socketio.AsyncServer):
             return {"module_type": module_config.module_type, "questions": questions}
 
         if module_config.module_type == ModuleType.MASTER_COMMU:
-            commu_qs = await gemini.generate_commu_questions(
+            commu_qs = await ai.generate_commu_questions(
                 module_config.num_questions,
                 theme=module_config.theme,
             )
@@ -543,7 +549,7 @@ def register_events(sio: socketio.AsyncServer):
             return {"module_type": module_config.module_type, "questions": questions}
 
         if module_config.module_type == ModuleType.BLIND_TEST:
-            suggestions = await gemini.generate_blindtest_suggestions(
+            suggestions = await ai.generate_blindtest_suggestions(
                 num=module_config.num_questions,
                 theme=module_config.theme,
             )
@@ -693,9 +699,9 @@ def register_events(sio: socketio.AsyncServer):
         session.phase = GamePhase.TIEBREAKER
         session.tiebreaker_scores = {s: 0 for s in tied_sids}
 
-        gemini = get_gemini()
+        ai = get_ai_for_session(session)
         try:
-            raw = await gemini.generate_quiz_questions(
+            raw = await ai.generate_quiz_questions(
                 theme="Culture Générale",
                 num=10,
                 difficulties=[Difficulty.MEDIUM, Difficulty.HARD],

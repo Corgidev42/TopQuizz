@@ -41,6 +41,10 @@ class GameSession:
         self.tiebreaker_scores: dict[str, int] = {}
         self._color_index = 0
 
+        # AI config (selected by host at start)
+        self.ai_provider: str = "gemini"  # "gemini" | "ollama"
+        self.ollama_model: str | None = None
+
     def add_player(self, sid: str, pseudo: str) -> Player:
         color = PLAYER_COLORS[self._color_index % len(PLAYER_COLORS)]
         self._color_index += 1
@@ -184,6 +188,10 @@ class GameSession:
             "commu_revealed": self.commu_revealed,
             "memory_preview": self.memory_preview,
             "tiebreaker_scores": self.tiebreaker_scores,
+            "ai": {
+                "provider": self.ai_provider,
+                "ollama_model": self.ollama_model,
+            },
         }
 
 

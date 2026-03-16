@@ -37,6 +37,10 @@ Plateforme locale de quiz événementiel propulsée par l'IA (Google Gemini). In
 
 Tout est conteneurisé avec **Docker Compose** — zéro dépendance locale.
 
+> ℹ️ Depuis la vue Host, tu peux choisir l'IA utilisée pour générer les questions :
+> - **Gemini** (cloud, clé API requise)
+> - **Ollama** (local) avec sélection du modèle disponible sur ta machine
+
 ## 🚀 Démarrage Rapide
 
 ### Prérequis
@@ -79,7 +83,9 @@ Un `Makefile` est disponible pour simplifier la gestion des conteneurs :
 |-----------|-----|-------|
 | **Host** | `http://localhost:3000/host` | Contrôle la partie depuis ton Mac |
 | **TV** | `http://localhost:3000/tv?game=CODE` | Affichage HDMI grand écran |
-| **Joueur** | Scanne le QR Code sur la TV | Buzzer + réponses depuis le téléphone |
+| **Joueur** | Scanne le QR Code sur la TV ou ouvre le lien mobile affiché sur la TV/Host | Buzzer + réponses depuis le téléphone |
+
+Sur la TV (et dans le panneau Host), un **lien “play” + QR code** sont générés automatiquement en utilisant l’IP LAN détectée (ex: `http://192.168.x.x:3000/play?game=CODE`), ce qui évite les problèmes de `localhost`/Docker inaccessibles depuis le téléphone.
 
 ## 🎯 Système de Scoring
 
@@ -161,36 +167,36 @@ Le format de nommage `Artiste - Titre.ext` permet la correction automatique des 
 | `OLLAMA_BASE_URL` | URL d’Ollama depuis Docker (défaut : `http://host.docker.internal:11434`) |
 | `OLLAMA_MODEL` | Modèle Ollama à utiliser (défaut : `qwen2.5:7b-instruct`) |
 
-### 🧠 Ollama (fallback si Gemini ne marche pas)
+### 🔀 Choix de l’IA (Gemini / Ollama)
 
-Le backend essaie Gemini en priorité. Si Gemini renvoie une erreur (quota, indisponibilité, etc.), TopQuizz peut basculer automatiquement sur Ollama (local).
+Deux façons d’utiliser Ollama :
 
-1) Installer et lancer Ollama sur ta machine
+- **Fallback automatique** (config historique) : si `OLLAMA_ENABLED=true`, le backend essaie Gemini en priorité et bascule sur Ollama local en cas d’erreur de quota/indisponibilité.
+- **Sélection directe dans le Host** : dans le panneau Host, tu peux choisir “Ollama (local)” comme provider principal et sélectionner ton modèle.
 
-2) Télécharger un modèle adapté
+1) Installer et lancer Ollama sur ta machine (par défaut sur `http://localhost:11434`)
+
+2) Vérifier que l’URL est accessible depuis Docker :
+
+```bash
+# .env (côté TopQuizz)
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+3) Télécharger un ou plusieurs modèles adaptés dans Ollama :
 
 ```bash
 ollama pull qwen2.5:7b-instruct
+ollama pull llama3.1:8b-instruct
 ```
 
-3) Activer le fallback dans `.env`
-
-```bash
-OLLAMA_ENABLED=true
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_MODEL=qwen2.5:7b-instruct
-```
-
-4) Rebuild/restart
+4) Redémarrer le backend :
 
 ```bash
 docker compose up -d --build backend
 ```
 
-Modèles recommandés pour TopQuizz :
-- `qwen2.5:7b-instruct` (très bon en JSON/consignes, bon en français)
-- `llama3.1:8b-instruct` (bon généraliste)
-- `phi3:mini` (plus léger, qualité plus variable)
+Si l’endpoint `/api/generate` d’Ollama renvoie une erreur (ex: `404 Not Found`), TopQuizz affichera une erreur lisible dans le Host et **le bouton “Génération en cours...” sera automatiquement réinitialisé**.
 
 ## 🎨 Presets de Partie
 

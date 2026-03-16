@@ -18,6 +18,7 @@ interface GameStore {
   joinUrl: string | null;
   presets: Preset[];
   notification: Notification | null;
+  lastErrorAt: number | null;
 
   setConnected: (c: boolean) => void;
   setGameId: (id: string | null) => void;
@@ -28,6 +29,7 @@ interface GameStore {
   setJoinUrl: (url: string | null) => void;
   setPresets: (p: Preset[]) => void;
   setNotification: (n: Notification | null) => void;
+  setLastErrorAt: (t: number | null) => void;
   reset: () => void;
 }
 
@@ -41,6 +43,7 @@ const initial = {
   joinUrl: null as string | null,
   presets: [] as Preset[],
   notification: null as Notification | null,
+  lastErrorAt: null as number | null,
 };
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -54,5 +57,6 @@ export const useGameStore = create<GameStore>((set) => ({
   setJoinUrl: (joinUrl) => set({ joinUrl }),
   setPresets: (presets) => set({ presets }),
   setNotification: (notification) => set({ notification }),
+  setLastErrorAt: (lastErrorAt) => set({ lastErrorAt }),
   reset: () => set(initial),
 }));
