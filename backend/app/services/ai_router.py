@@ -17,7 +17,9 @@ def _strip_code_fences(text: str) -> str:
 def _parse_json(text: str):
     s = _strip_code_fences(text)
     if not s:
-        raise ValueError("Empty AI response")
+        raise RuntimeError(
+            "Ollama a renvoyé une réponse vide. Vérifie que le modèle est bien compatible et chargé."
+        )
 
     first_obj = s.find("{")
     first_arr = s.find("[")
