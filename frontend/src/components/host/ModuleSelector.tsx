@@ -1,5 +1,5 @@
-import type { ModuleConfig, ModuleType, Difficulty } from "../../types";
-import { MODULE_LABELS, MODULE_ICONS } from "../../types";
+import type { ModuleConfig, ModuleType, Difficulty, DilemmeSubMode } from "../../types";
+import { MODULE_LABELS, MODULE_ICONS, DILEMME_SUB_MODE_LABELS } from "../../types";
 
 const ALL_MODULES: ModuleType[] = [
   "master_quiz",
@@ -7,6 +7,14 @@ const ALL_MODULES: ModuleType[] = [
   "master_face",
   "master_commu",
   "blind_test",
+  "dilemme_parfait",
+];
+
+const ALL_DILEMME_MODES: DilemmeSubMode[] = [
+  "ai_start",
+  "vous_aimez",
+  "pourriez_vous",
+  "libre",
 ];
 
 const ALL_DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard", "expert"];
@@ -91,7 +99,7 @@ export default function ModuleSelector({ modules, onChange }: Props) {
           {mod.module_type !== "master_memory" && (
             <div className="flex items-center gap-3">
               <label className="text-sm text-neutral-400 whitespace-nowrap">
-                Questions :
+                {mod.module_type === "dilemme_parfait" ? "Manches :" : "Questions :"}
               </label>
               <input
                 type="number"
@@ -108,7 +116,7 @@ export default function ModuleSelector({ modules, onChange }: Props) {
             </div>
           )}
 
-          {mod.module_type !== "master_memory" && (
+          {mod.module_type !== "master_memory" && mod.module_type !== "dilemme_parfait" && (
             <div>
               <label className="text-sm text-neutral-400 mb-1 block">
                 Difficultés :
@@ -146,6 +154,40 @@ export default function ModuleSelector({ modules, onChange }: Props) {
                           : d === "hard"
                             ? "Dur"
                             : "Expert"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {mod.module_type === "dilemme_parfait" && (
+            <div>
+              <label className="text-sm text-neutral-400 mb-1 block">
+                Sous-modes :
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {ALL_DILEMME_MODES.map((dm) => {
+                  const active = (mod.dilemme_sub_modes ?? ALL_DILEMME_MODES).includes(dm);
+                  return (
+                    <button
+                      key={dm}
+                      onClick={() => {
+                        const current = mod.dilemme_sub_modes ?? ALL_DILEMME_MODES;
+                        const newModes = active
+                          ? current.filter((x) => x !== dm)
+                          : [...current, dm];
+                        if (newModes.length > 0) {
+                          updateModule(i, { dilemme_sub_modes: newModes });
+                        }
+                      }}
+                      className={`badge transition-colors cursor-pointer ${
+                        active
+                          ? "bg-brand-orange/30 text-brand-orange"
+                          : "bg-surface-light text-neutral-500"
+                      }`}
+                    >
+                      {DILEMME_SUB_MODE_LABELS[dm]}
                     </button>
                   );
                 })}

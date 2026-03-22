@@ -34,6 +34,7 @@ export default function JoinView() {
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!pseudo.trim() || !gameCode.trim()) return;
+    useGameStore.setState({ role: "player" });
     emit("join_game", { game_id: gameCode.toUpperCase(), pseudo: pseudo.trim() });
   };
 

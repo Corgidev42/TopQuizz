@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" fill="none">
+  <defs>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="50%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Lightning bolt icon -->
+  <g filter="url(#glow)" transform="translate(10, 10)">
+    <path d="M45 5L20 45h18L25 80l35-45H42L55 5z" fill="url(#boltGrad)" opacity="0.9"/>
+  </g>
+  <!-- "Top" text -->
+  <text x="80" y="70" font-family="Nunito, system-ui, sans-serif" font-weight="900" font-size="60" fill="#FAFAFA" letter-spacing="-2">Top</text>
+  <!-- "Quizz" text with gradient -->
+  <text x="195" y="70" font-family="Nunito, system-ui, sans-serif" font-weight="900" font-size="60" fill="url(#orangeGrad)" letter-spacing="-2">Quizz</text>
+  <!-- Decorative dots -->
+  <circle cx="370" cy="25" r="4" fill="#F97316" opacity="0.6"/>
+  <circle cx="382" cy="35" r="3" fill="#FB923C" opacity="0.4"/>
+  <circle cx="375" cy="48" r="2" fill="#FBBF24" opacity="0.3"/>
+</svg>

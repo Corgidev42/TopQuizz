@@ -5,6 +5,7 @@ import QRCodeDisplay from "../components/tv/QRCodeDisplay";
 import QuestionDisplay from "../components/tv/QuestionDisplay";
 import Scoreboard from "../components/tv/Scoreboard";
 import PlayerList from "../components/tv/PlayerList";
+import DilemmeDisplay from "../components/tv/DilemmeDisplay";
 import Logo from "../components/shared/Logo";
 import { MODULE_LABELS, MODULE_ICONS } from "../types";
 import MemoryPreview from "../components/tv/MemoryPreview";
@@ -14,6 +15,7 @@ export default function TVView() {
   const { gameId, gameState, joinUrl } = useGameStore();
 
   useEffect(() => {
+    useGameStore.setState({ role: "tv" });
     const params = new URLSearchParams(window.location.search);
     const gid = params.get("game");
     if (gid) {
@@ -70,9 +72,24 @@ export default function TVView() {
     );
   }
 
+  // DILEMME PHASES
+  if (
+    (phase === "dilemme_submit" || phase === "dilemme_vote" || phase === "dilemme_vote_result") &&
+    gameState.dilemme
+  ) {
+    return (
+      <DilemmeDisplay
+        dilemme={gameState.dilemme}
+        phase={phase}
+        scores={gameState.scores}
+      />
+    );
+  }
+
   // MODULE INTRO
   if (phase === "module_intro") {
     const mod = gameState.current_module;
+    const isDilemme = mod === "dilemme_parfait";
     return (
       <div className="min-h-screen flex flex-col items-center justify-center animate-bounce-in">
         <div className="text-8xl mb-6">{mod ? MODULE_ICONS[mod] : "🎮"}</div>
@@ -82,9 +99,16 @@ export default function TVView() {
         <p className="text-neutral-400 text-2xl mt-4">
           {gameState.current_module_index + 1} / {gameState.total_modules}
         </p>
-        <p className="text-neutral-500 mt-2">
-          {gameState.total_questions} questions
-        </p>
+        {!isDilemme && (
+          <p className="text-neutral-500 mt-2">
+            {gameState.total_questions} questions
+          </p>
+        )}
+        {isDilemme && gameState.dilemme && (
+          <p className="text-neutral-500 mt-2">
+            {gameState.dilemme.total_rounds} manches
+          </p>
+        )}
       </div>
     );
   }

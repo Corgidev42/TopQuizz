@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+import uuid
+from pydantic import BaseModel, Field
 
 
 class Player(BaseModel):
@@ -8,6 +9,7 @@ class Player(BaseModel):
     score: int = 0
     is_eliminated: bool = False
     is_connected: bool = True
+    token: str = Field(default_factory=lambda: uuid.uuid4().hex)
 
 
 PLAYER_COLORS: list[str] = [

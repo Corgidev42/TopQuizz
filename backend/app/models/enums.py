@@ -12,6 +12,9 @@ class GamePhase(str, Enum):
     MODULE_RESULT = "module_result"
     TIEBREAKER = "tiebreaker"
     FINAL_RESULTS = "final_results"
+    DILEMME_SUBMIT = "dilemme_submit"
+    DILEMME_VOTE = "dilemme_vote"
+    DILEMME_VOTE_RESULT = "dilemme_vote_result"
 
 
 class ModuleType(str, Enum):
@@ -20,6 +23,7 @@ class ModuleType(str, Enum):
     MASTER_FACE = "master_face"
     MASTER_COMMU = "master_commu"
     BLIND_TEST = "blind_test"
+    DILEMME_PARFAIT = "dilemme_parfait"
 
 
 class Difficulty(str, Enum):
@@ -27,6 +31,13 @@ class Difficulty(str, Enum):
     MEDIUM = "medium"
     HARD = "hard"
     EXPERT = "expert"
+
+
+class DilemmeSubMode(str, Enum):
+    AI_START = "ai_start"
+    VOUS_AIMEZ = "vous_aimez"
+    POURRIEZ_VOUS = "pourriez_vous"
+    LIBRE = "libre"
 
 
 DIFFICULTY_POINTS: dict[Difficulty, int] = {
@@ -42,4 +53,5 @@ MODULE_LABELS: dict[ModuleType, str] = {
     ModuleType.MASTER_FACE: "TopFace",
     ModuleType.MASTER_COMMU: "TopCommu",
     ModuleType.BLIND_TEST: "TopBlindtest",
+    ModuleType.DILEMME_PARFAIT: "TopDilemme",
 }

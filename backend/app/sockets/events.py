@@ -14,6 +14,7 @@ from app.models.enums import (
     GamePhase,
     ModuleType,
     Difficulty,
+    DilemmeSubMode,
     MODULE_LABELS,
 )
 from app.models.question import Question, ModuleConfig
@@ -37,7 +38,94 @@ def register_events(sio: socketio.AsyncServer):
         if session:
             if sid in session.players:
                 session.players[sid].is_connected = False
+                await game_manager.persist(session)
                 await sio.emit("game_state", session.to_dict(), room=session.id)
+
+    # ------------------------------------------------------------------
+    # Rejoin (reconnection after page refresh)
+    # ------------------------------------------------------------------
+
+    @sio.event
+    async def rejoin_game(sid, data):
+        game_id = (data.get("game_id") or "").upper()
+        token = data.get("token", "")
+        role = data.get("role", "")
+
+        session = game_manager.get_session(game_id)
+        if not session:
+            await sio.emit("rejoin_failed", {"message": "Partie introuvable"}, room=sid)
+            return
+
+        if role == "host" and session.host_token == token:
+            old_sid = session.host_sid
+            session.host_sid = sid
+            await sio.enter_room(sid, session.id)
+            local_ip = settings.local_ip
+            join_url = f"http://{local_ip}:3000/play?game={session.id}"
+            await sio.emit(
+                "rejoin_success",
+                {
+                    "role": "host",
+                    "game_id": session.id,
+                    "token": session.host_token,
+                    "join_url": join_url,
+                    "presets": [p.model_dump() for p in DEFAULT_PRESETS],
+                },
+                room=sid,
+            )
+            await game_manager.persist(session)
+            await sio.emit("game_state", session.to_dict(), room=session.id)
+            return
+
+        if role == "tv" and session.tv_token == token:
+            session.tv_sid = sid
+            await sio.enter_room(sid, session.id)
+            local_ip = settings.local_ip
+            join_url = f"http://{local_ip}:3000/play?game={session.id}"
+            await sio.emit(
+                "rejoin_success",
+                {"role": "tv", "game_id": session.id, "token": session.tv_token, "join_url": join_url},
+                room=sid,
+            )
+            await game_manager.persist(session)
+            await sio.emit("game_state", session.to_dict(), room=session.id)
+            return
+
+        if role == "player":
+            player = game_manager.find_player_by_token(game_id, token)
+            if player:
+                old_sid = player.sid
+                if old_sid in session.players:
+                    session.players[sid] = session.players.pop(old_sid)
+                player.sid = sid
+                player.is_connected = True
+                if session.active_answerer == old_sid:
+                    session.active_answerer = sid
+                session.buzzer_queue = [sid if s == old_sid else s for s in session.buzzer_queue]
+                session.eliminated_this_question = [sid if s == old_sid else s for s in session.eliminated_this_question]
+                if old_sid in session.tiebreaker_scores:
+                    session.tiebreaker_scores[sid] = session.tiebreaker_scores.pop(old_sid)
+
+                await sio.enter_room(sid, session.id)
+                await sio.emit(
+                    "rejoin_success",
+                    {
+                        "role": "player",
+                        "game_id": session.id,
+                        "token": player.token,
+                        "player": {
+                            "sid": sid,
+                            "pseudo": player.pseudo,
+                            "color": player.color,
+                        },
+                    },
+                    room=sid,
+                )
+                await game_manager.persist(session)
+                await sio.emit("game_state", session.to_dict(), room=session.id)
+                return
+
+        await sio.emit("rejoin_failed", {"message": "Token invalide"}, room=sid)
 
     # ------------------------------------------------------------------
     # Host events
@@ -58,10 +146,28 @@ def register_events(sio: socketio.AsyncServer):
                 "game_id": session.id,
                 "join_url": join_url,
                 "presets": [p.model_dump() for p in DEFAULT_PRESETS],
+                "token": session.host_token,
             },
             room=sid,
         )
+        await game_manager.persist(session)
         await sio.emit("game_state", session.to_dict(), room=session.id)
+
+    @sio.event
+    async def host_cancel_game(sid, data):
+        game_id = (data or {}).get("game_id")
+        session = game_manager.get_session(game_id)
+        if not session or session.host_sid != sid:
+            return
+
+        # Notify everyone in the room before deleting state.
+        await sio.emit(
+            "game_cancelled",
+            {"game_id": session.id, "message": "La partie a été annulée par l'host."},
+            room=session.id,
+        )
+        get_audio_streamer().cleanup_session(session.id)
+        await game_manager.remove_session(session.id)
 
     @sio.event
     async def host_start_game(sid, data):
@@ -93,6 +199,7 @@ def register_events(sio: socketio.AsyncServer):
         session.phase = GamePhase.PLAYING
         session.current_module_index = -1
 
+        await game_manager.persist(session)
         await sio.emit("game_started", {"game_id": session.id}, room=session.id)
         await _advance_module(sio, session)
 
@@ -217,6 +324,167 @@ def register_events(sio: socketio.AsyncServer):
             await sio.emit("game_state", session.to_dict(), room=session.id)
 
     # ------------------------------------------------------------------
+    # Dilemme Parfait events
+    # ------------------------------------------------------------------
+
+    @sio.event
+    async def host_next_dilemme(sid, data):
+        game_id = data.get("game_id")
+        session = game_manager.get_session(game_id)
+        if not session or session.host_sid != sid:
+            return
+
+        session.dilemme_round_index += 1
+        if session.dilemme_round_index >= len(session.dilemme_rounds):
+            session.phase = GamePhase.MODULE_RESULT
+            session.dilemme_submissions = []
+            session.dilemme_votes = {}
+            await sio.emit("module_end", {"scores": session.get_scores()}, room=session.id)
+            await game_manager.persist(session)
+            await sio.emit("game_state", session.to_dict(), room=session.id)
+            return
+
+        current_round = session.dilemme_rounds[session.dilemme_round_index]
+        session.dilemme_sub_mode = current_round["sub_mode"]
+        session.dilemme_prompt = current_round.get("prompt")
+        session.dilemme_submissions = []
+        session.dilemme_current_submission_index = -1
+        session.dilemme_votes = {}
+        session.phase = GamePhase.DILEMME_SUBMIT
+
+        await game_manager.persist(session)
+        await sio.emit("game_state", session.to_dict(), room=session.id)
+
+    @sio.event
+    async def submit_dilemme(sid, data):
+        game_id = data.get("game_id")
+        text = (data.get("text") or "").strip()
+        session = game_manager.get_session(game_id)
+        if not session or sid not in session.players or not text:
+            return
+        if session.phase != GamePhase.DILEMME_SUBMIT:
+            return
+
+        already = any(s["sid"] == sid for s in session.dilemme_submissions)
+        if already:
+            return
+
+        player = session.players[sid]
+        session.dilemme_submissions.append({
+            "sid": sid,
+            "pseudo": player.pseudo,
+            "color": player.color,
+            "text": text,
+        })
+
+        await sio.emit(
+            "dilemme_submitted",
+            {"pseudo": player.pseudo, "count": len(session.dilemme_submissions), "total": len(session.players)},
+            room=session.id,
+        )
+
+        if len(session.dilemme_submissions) >= len([p for p in session.players.values() if p.is_connected]):
+            await _start_dilemme_voting(sio, session)
+        else:
+            await game_manager.persist(session)
+
+    @sio.event
+    async def host_force_dilemme_vote(sid, data):
+        """Host can force voting to start even if not all players submitted."""
+        game_id = data.get("game_id")
+        session = game_manager.get_session(game_id)
+        if not session or session.host_sid != sid:
+            return
+        if session.phase == GamePhase.DILEMME_SUBMIT and session.dilemme_submissions:
+            await _start_dilemme_voting(sio, session)
+
+    @sio.event
+    async def vote_dilemme(sid, data):
+        game_id = data.get("game_id")
+        vote = data.get("vote")  # True = OUI, False = NON
+        session = game_manager.get_session(game_id)
+        if not session or sid not in session.players:
+            return
+        if session.phase != GamePhase.DILEMME_VOTE:
+            return
+
+        current_sub = session.dilemme_submissions[session.dilemme_current_submission_index]
+        if sid == current_sub["sid"]:
+            return
+
+        session.dilemme_votes[sid] = bool(vote)
+
+        eligible = [
+            p.sid for p in session.players.values()
+            if p.is_connected and p.sid != current_sub["sid"]
+        ]
+        if len(session.dilemme_votes) >= len(eligible):
+            await _resolve_dilemme_vote(sio, session)
+        else:
+            await game_manager.persist(session)
+
+    @sio.event
+    async def host_next_dilemme_submission(sid, data):
+        """Move to next player's submission for voting."""
+        game_id = data.get("game_id")
+        session = game_manager.get_session(game_id)
+        if not session or session.host_sid != sid:
+            return
+        if session.phase == GamePhase.DILEMME_VOTE_RESULT:
+            session.dilemme_current_submission_index += 1
+            if session.dilemme_current_submission_index >= len(session.dilemme_submissions):
+                session.dilemme_current_submission_index = -1
+                session.phase = GamePhase.MODULE_INTRO
+                await game_manager.persist(session)
+                await sio.emit("game_state", session.to_dict(), room=session.id)
+                return
+            session.dilemme_votes = {}
+            session.phase = GamePhase.DILEMME_VOTE
+            await game_manager.persist(session)
+            await sio.emit("game_state", session.to_dict(), room=session.id)
+
+    async def _start_dilemme_voting(sio_server: socketio.AsyncServer, session: GameSession):
+        session.dilemme_current_submission_index = 0
+        session.dilemme_votes = {}
+        session.phase = GamePhase.DILEMME_VOTE
+        await game_manager.persist(session)
+        await sio_server.emit("game_state", session.to_dict(), room=session.id)
+
+    async def _resolve_dilemme_vote(sio_server: socketio.AsyncServer, session: GameSession):
+        votes = session.dilemme_votes
+        total_votes = len(votes)
+        yes_count = sum(1 for v in votes.values() if v)
+        yes_pct = (yes_count / total_votes * 100) if total_votes > 0 else 0
+        points = max(0, round(10 * (1 - abs(yes_pct - 50) / 50)))
+
+        current_sub = session.dilemme_submissions[session.dilemme_current_submission_index]
+        author_sid = current_sub["sid"]
+        if author_sid in session.players:
+            session.players[author_sid].score += points
+
+        current_sub["yes_count"] = yes_count
+        current_sub["no_count"] = total_votes - yes_count
+        current_sub["yes_pct"] = round(yes_pct, 1)
+        current_sub["points"] = points
+
+        session.phase = GamePhase.DILEMME_VOTE_RESULT
+
+        await sio_server.emit(
+            "dilemme_vote_result",
+            {
+                "submission": current_sub,
+                "yes_count": yes_count,
+                "no_count": total_votes - yes_count,
+                "yes_pct": round(yes_pct, 1),
+                "points": points,
+                "scores": session.get_scores(),
+            },
+            room=session.id,
+        )
+        await game_manager.persist(session)
+        await sio_server.emit("game_state", session.to_dict(), room=session.id)
+
+    # ------------------------------------------------------------------
     # TV events
     # ------------------------------------------------------------------
 
@@ -236,9 +504,10 @@ def register_events(sio: socketio.AsyncServer):
 
         await sio.emit(
             "tv_connected",
-            {"game_id": session.id, "join_url": join_url},
+            {"game_id": session.id, "join_url": join_url, "token": session.tv_token},
             room=sid,
         )
+        await game_manager.persist(session)
         await sio.emit("game_state", session.to_dict(), room=session.id)
 
     # ------------------------------------------------------------------
@@ -285,6 +554,7 @@ def register_events(sio: socketio.AsyncServer):
                     "color": player.color,
                 },
                 "game_id": session.id,
+                "token": player.token,
             },
             room=sid,
         )
@@ -299,6 +569,7 @@ def register_events(sio: socketio.AsyncServer):
             room=session.id,
         )
 
+        await game_manager.persist(session)
         await sio.emit("game_state", session.to_dict(), room=session.id)
 
     @sio.event
@@ -452,9 +723,9 @@ def register_events(sio: socketio.AsyncServer):
                     room=session.id,
                 )
             else:
-                # Buzzer reopened — other players can now answer
                 session.phase = GamePhase.BUZZER_OPEN
 
+        await game_manager.persist(session)
         await sio.emit("game_state", session.to_dict(), room=session.id)
 
     # ------------------------------------------------------------------
@@ -554,11 +825,30 @@ def register_events(sio: socketio.AsyncServer):
                 theme=module_config.theme,
             )
             streamer = get_audio_streamer()
-            sem = asyncio.Semaphore(2)
+            sem = asyncio.Semaphore(3)
+            done_count = 0
+            total = len(suggestions)
 
             async def download_one(idx: int, song: dict):
+                nonlocal done_count
                 async with sem:
-                    audio_path = await streamer.search_and_download(song["search_query"])
+                    audio_path = await streamer.search_and_download(
+                        song["search_query"], game_id=session.id
+                    )
+                    if audio_path is None:
+                        replacement = await ai.generate_blindtest_suggestions(num=1, theme=module_config.theme)
+                        if replacement:
+                            audio_path = await streamer.search_and_download(
+                                replacement[0]["search_query"], game_id=session.id
+                            )
+                            if audio_path:
+                                song = replacement[0]
+                done_count += 1
+                await sio.emit(
+                    "blindtest_progress",
+                    {"done": done_count, "total": total},
+                    room=session.id,
+                )
                 return idx, song, audio_path
 
             results = await asyncio.gather(
@@ -588,6 +878,37 @@ def register_events(sio: socketio.AsyncServer):
                 )
             return {"module_type": module_config.module_type, "questions": questions}
 
+        if module_config.module_type == ModuleType.DILEMME_PARFAIT:
+            sub_modes = module_config.dilemme_sub_modes or [
+                DilemmeSubMode.AI_START,
+                DilemmeSubMode.VOUS_AIMEZ,
+                DilemmeSubMode.POURRIEZ_VOUS,
+                DilemmeSubMode.LIBRE,
+            ]
+            num_rounds = module_config.num_questions
+            rounds: list[dict] = []
+
+            ai_prompts: list[str] = []
+            ai_count = sum(1 for sm in sub_modes[:num_rounds] if sm == DilemmeSubMode.AI_START)
+            if ai_count > 0:
+                positive = random.choice([True, False])
+                ai_prompts = await ai.generate_dilemme_start(positive=positive, count=ai_count)
+
+            ai_idx = 0
+            for i in range(num_rounds):
+                sm = sub_modes[i % len(sub_modes)]
+                round_data: dict = {"sub_mode": sm.value, "prompt": None}
+                if sm == DilemmeSubMode.AI_START and ai_idx < len(ai_prompts):
+                    round_data["prompt"] = ai_prompts[ai_idx]
+                    ai_idx += 1
+                rounds.append(round_data)
+
+            return {
+                "module_type": module_config.module_type,
+                "questions": [],
+                "dilemme_rounds": rounds,
+            }
+
         return {"module_type": module_config.module_type, "questions": []}
 
     async def _prefetch_and_store(session: GameSession, module_index: int) -> dict:
@@ -607,6 +928,9 @@ def register_events(sio: socketio.AsyncServer):
                 await _start_tiebreaker(sio_server, session, tied)
             else:
                 session.phase = GamePhase.FINAL_RESULTS
+                streamer = get_audio_streamer()
+                streamer.cleanup_session(session.id)
+                await game_manager.persist(session)
                 await sio_server.emit(
                     "game_state", session.to_dict(), room=session.id
                 )
@@ -631,6 +955,14 @@ def register_events(sio: socketio.AsyncServer):
                     data = await _build_module_data(session, session.current_module_index)
 
             session.current_module_questions = data.get("questions", [])
+
+            if module_config.module_type == ModuleType.DILEMME_PARFAIT:
+                session.dilemme_rounds = data.get("dilemme_rounds", [])
+                session.dilemme_round_index = -1
+                session.phase = GamePhase.MODULE_INTRO
+                await sio_server.emit("game_state", session.to_dict(), room=session.id)
+                await game_manager.persist(session)
+                return
 
             if not session.current_module_questions:
                 await _advance_module(sio_server, session)
@@ -665,6 +997,7 @@ def register_events(sio: socketio.AsyncServer):
                 session.phase = GamePhase.MODULE_INTRO
                 await sio_server.emit("game_state", session.to_dict(), room=session.id)
 
+            await game_manager.persist(session)
             next_index = session.current_module_index + 1
             if next_index < len(session.modules):
                 if (

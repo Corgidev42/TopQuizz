@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     media_dir: str = "/app/media"
+    redis_url: str = "redis://localhost:6379/0"
 
     @property
     def local_ip(self) -> str:

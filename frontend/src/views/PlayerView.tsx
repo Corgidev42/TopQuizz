@@ -6,6 +6,7 @@ import JoinView from "./JoinView";
 import Buzzer from "../components/player/Buzzer";
 import AnswerInput from "../components/player/AnswerInput";
 import WaitingScreen from "../components/player/WaitingScreen";
+import DilemmeInput from "../components/player/DilemmeInput";
 import { MODULE_LABELS, MODULE_ICONS, ModuleType } from "../types";
 
 const getAnswerTimeout = (moduleType: ModuleType | undefined) => {
@@ -332,6 +333,26 @@ export default function PlayerView() {
         </div>
         <p className="text-neutral-400 mt-6">Merci d'avoir joué ! 🎮</p>
       </div>
+    );
+  }
+
+  // DILEMME PHASES
+  if (
+    (phase === "dilemme_submit" || phase === "dilemme_vote" || phase === "dilemme_vote_result") &&
+    gameState.dilemme
+  ) {
+    return (
+      <DilemmeInput
+        dilemme={gameState.dilemme}
+        phase={phase}
+        mySid={mySid}
+        onSubmit={(text) =>
+          emit("submit_dilemme", { game_id: gameState.id, text })
+        }
+        onVote={(vote) =>
+          emit("vote_dilemme", { game_id: gameState.id, vote })
+        }
+      />
     );
   }
 

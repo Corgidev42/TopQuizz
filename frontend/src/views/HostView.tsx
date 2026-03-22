@@ -6,7 +6,7 @@ import QuestionControl from "../components/host/QuestionControl";
 import ScoreManager from "../components/host/ScoreManager";
 import Logo from "../components/shared/Logo";
 import Spinner from "../components/shared/Spinner";
-import { MODULE_LABELS, MODULE_ICONS } from "../types";
+import { MODULE_LABELS, MODULE_ICONS, DILEMME_SUB_MODE_LABELS } from "../types";
 
 export default function HostView() {
   const { emit } = useSocket();
@@ -15,6 +15,9 @@ export default function HostView() {
   const [loadingNextModule, setLoadingNextModule] = useState(false);
 
   const phase = gameState?.phase ?? null;
+  useEffect(() => {
+    useGameStore.setState({ role: "host" });
+  }, []);
   useEffect(() => {
     if (phase !== "module_result") {
       setLoadingNextModule(false);
@@ -77,7 +80,19 @@ export default function HostView() {
             </span>
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-right flex items-center gap-3">
+          <button
+            onClick={() => {
+              const ok = window.confirm(
+                "Annuler la partie en cours et retourner à l'accueil ?"
+              );
+              if (!ok) return;
+              emit("host_cancel_game", { game_id: gameState.id });
+            }}
+            className="btn-secondary border-red-500/50 text-red-300 hover:bg-red-500/10"
+          >
+            Annuler la game
+          </button>
           <div className="text-sm text-neutral-400">
             {Object.keys(gameState.players).length} joueur(s)
           </div>
@@ -134,17 +149,108 @@ export default function HostView() {
               : "Module"}
           </h2>
           <p className="text-neutral-400 mb-6">
-            {gameState.total_questions} questions — Module{" "}
+            {gameState.current_module === "dilemme_parfait"
+              ? `${gameState.dilemme?.total_rounds ?? 0} manches`
+              : `${gameState.total_questions} questions`}
+            {" — Module "}
             {gameState.current_module_index + 1}/{gameState.total_modules}
+          </p>
+          {gameState.current_module === "dilemme_parfait" ? (
+            <button
+              onClick={() =>
+                emit("host_next_dilemme", { game_id: gameState.id })
+              }
+              className="btn-primary text-xl px-8"
+            >
+              Lancer le premier dilemme ▶️
+            </button>
+          ) : (
+            <button
+              onClick={() =>
+                emit("host_next_question", { game_id: gameState.id })
+              }
+              className="btn-primary text-xl px-8"
+            >
+              Lancer la première question ▶️
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* DILEMME PARFAIT controls */}
+      {phase === "dilemme_submit" && gameState.dilemme && (
+        <div className="card text-center">
+          <div className="text-4xl mb-4">⚖️</div>
+          <h2 className="text-2xl font-bold mb-2">
+            {DILEMME_SUB_MODE_LABELS[gameState.dilemme.sub_mode]}
+          </h2>
+          <p className="text-neutral-400 mb-4">
+            Manche {gameState.dilemme.round_index + 1}/{gameState.dilemme.total_rounds}
+          </p>
+          <p className="text-lg mb-4">
+            {gameState.dilemme.submissions.length} soumission(s) reçue(s)
           </p>
           <button
             onClick={() =>
-              emit("host_next_question", { game_id: gameState.id })
+              emit("host_force_dilemme_vote", { game_id: gameState.id })
             }
-            className="btn-primary text-xl px-8"
+            disabled={gameState.dilemme.submissions.length === 0}
+            className="btn-secondary"
           >
-            Lancer la première question ▶️
+            Forcer le passage au vote
           </button>
+        </div>
+      )}
+
+      {phase === "dilemme_vote" && gameState.dilemme && (
+        <div className="card text-center">
+          <div className="text-4xl mb-4">🗳️</div>
+          <h2 className="text-2xl font-bold mb-2">Vote en cours</h2>
+          <p className="text-neutral-400">
+            Dilemme de {gameState.dilemme.submissions[gameState.dilemme.current_submission_index]?.pseudo}
+          </p>
+          <p className="text-lg text-neutral-300 mt-2">
+            {Object.keys(gameState.dilemme.votes).length} vote(s) reçu(s)
+          </p>
+        </div>
+      )}
+
+      {phase === "dilemme_vote_result" && gameState.dilemme && (
+        <div className="card text-center space-y-4">
+          <h2 className="text-2xl font-bold">Résultat du vote</h2>
+          {(() => {
+            const sub = gameState.dilemme.submissions[gameState.dilemme.current_submission_index];
+            const isLast = gameState.dilemme.current_submission_index >= gameState.dilemme.submissions.length - 1;
+            return (
+              <>
+                <p className="text-lg">
+                  {sub?.pseudo}: <span className="font-bold">{sub?.text}</span>
+                </p>
+                <p className="text-brand-orange text-xl font-black">
+                  +{sub?.points ?? 0} pts ({sub?.yes_pct?.toFixed(0)}% OUI)
+                </p>
+                {isLast ? (
+                  <button
+                    onClick={() =>
+                      emit("host_next_dilemme", { game_id: gameState.id })
+                    }
+                    className="btn-primary"
+                  >
+                    Manche suivante ▶️
+                  </button>
+                ) : (
+                  <button
+                    onClick={() =>
+                      emit("host_next_dilemme_submission", { game_id: gameState.id })
+                    }
+                    className="btn-primary"
+                  >
+                    Dilemme suivant ▶️
+                  </button>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 

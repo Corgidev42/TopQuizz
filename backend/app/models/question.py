@@ -1,7 +1,7 @@
 from pydantic import BaseModel, model_validator
 from typing import Optional
 
-from app.models.enums import ModuleType, Difficulty, DIFFICULTY_POINTS
+from app.models.enums import ModuleType, Difficulty, DilemmeSubMode, DIFFICULTY_POINTS
 
 
 class Question(BaseModel):
@@ -16,7 +16,7 @@ class Question(BaseModel):
     media_path: Optional[str] = None
     extra_data: Optional[dict] = None
     blur_level: Optional[int] = None
-    pixelation_level: Optional[int] = None  # For pixelation effect
+    pixelation_level: Optional[int] = None
 
     @model_validator(mode="after")
     def set_points_from_difficulty(self):
@@ -34,6 +34,7 @@ class ModuleConfig(BaseModel):
         Difficulty.MEDIUM,
         Difficulty.HARD,
     ]
+    dilemme_sub_modes: Optional[list[DilemmeSubMode]] = None
 
 
 class GamePreset(BaseModel):

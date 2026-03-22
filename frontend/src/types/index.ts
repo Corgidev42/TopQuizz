@@ -8,16 +8,26 @@ export type GamePhase =
   | "question_result"
   | "module_result"
   | "tiebreaker"
-  | "final_results";
+  | "final_results"
+  | "dilemme_submit"
+  | "dilemme_vote"
+  | "dilemme_vote_result";
 
 export type ModuleType =
   | "master_quiz"
   | "master_memory"
   | "master_face"
   | "master_commu"
-  | "blind_test";
+  | "blind_test"
+  | "dilemme_parfait";
 
 export type Difficulty = "easy" | "medium" | "hard" | "expert";
+
+export type DilemmeSubMode =
+  | "ai_start"
+  | "vous_aimez"
+  | "pourriez_vous"
+  | "libre";
 
 export interface Player {
   pseudo: string;
@@ -49,6 +59,27 @@ export interface ScoreEntry {
   score: number;
 }
 
+export interface DilemmeSubmission {
+  sid: string;
+  pseudo: string;
+  color: string;
+  text: string;
+  yes_count?: number;
+  no_count?: number;
+  yes_pct?: number;
+  points?: number;
+}
+
+export interface DilemmeState {
+  sub_mode: DilemmeSubMode;
+  prompt: string | null;
+  submissions: DilemmeSubmission[];
+  current_submission_index: number;
+  votes: Record<string, boolean>;
+  round_index: number;
+  total_rounds: number;
+}
+
 export interface GameState {
   id: string;
   phase: GamePhase;
@@ -71,6 +102,7 @@ export interface GameState {
     show_seconds: number;
   } | null;
   tiebreaker_scores: Record<string, number>;
+  dilemme?: DilemmeState;
 }
 
 export interface ModuleConfig {
@@ -78,6 +110,7 @@ export interface ModuleConfig {
   num_questions: number;
   theme?: string;
   difficulty_mix: Difficulty[];
+  dilemme_sub_modes?: DilemmeSubMode[];
 }
 
 export interface Preset {
@@ -92,6 +125,7 @@ export const MODULE_LABELS: Record<ModuleType, string> = {
   master_face: "TopFace",
   master_commu: "TopCommu",
   blind_test: "TopBlindtest",
+  dilemme_parfait: "TopDilemme",
 };
 
 export const MODULE_ICONS: Record<ModuleType, string> = {
@@ -100,6 +134,7 @@ export const MODULE_ICONS: Record<ModuleType, string> = {
   master_face: "🎭",
   master_commu: "👥",
   blind_test: "🎵",
+  dilemme_parfait: "⚖️",
 };
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
@@ -114,4 +149,11 @@ export const DIFFICULTY_POINTS: Record<Difficulty, number> = {
   medium: 2,
   hard: 3,
   expert: 5,
+};
+
+export const DILEMME_SUB_MODE_LABELS: Record<DilemmeSubMode, string> = {
+  ai_start: "Dilemme IA",
+  vous_aimez: "Vous aimez...",
+  pourriez_vous: "Pourriez-vous...",
+  libre: "Dilemme Libre",
 };

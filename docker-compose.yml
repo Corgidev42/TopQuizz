@@ -1,4 +1,12 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - topquizz
+    restart: unless-stopped
+
   backend:
     build: ./backend
     ports:
@@ -7,6 +15,7 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - REDIS_URL=redis://redis:6379/0
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -14,6 +23,8 @@ services:
       - ./media:/app/media
     networks:
       - topquizz
+    depends_on:
+      - redis
     restart: unless-stopped
 
   frontend:

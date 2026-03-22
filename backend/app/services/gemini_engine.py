@@ -343,6 +343,25 @@ Retourne UNIQUEMENT un tableau JSON valide :
 
         return await self._generate_json(prompt)
 
+    async def generate_dilemme_start(self, positive: bool, count: int = 1) -> list[str]:
+        """Generate dilemma starters for the Dilemme Parfait game mode."""
+        tone = "positif (quelque chose de très désirable)" if positive else "négatif (quelque chose de très indésirable ou bizarre)"
+        prompt = f"""Génère {count} début(s) de dilemme {tone} pour un jeu de société.
+Chaque début doit être une proposition courte et percutante qui se termine par "mais...".
+Le but est que les joueurs complètent avec la contrepartie.
+
+Exemples positifs : "Tu as 10 millions d'euros mais...", "Tu peux voler mais..."
+Exemples négatifs : "Tu es poilu comme Chewbacca mais...", "Tu sens le fromage 24h/24 mais..."
+
+Retourne UNIQUEMENT un tableau JSON de strings :
+["Premier dilemme...", "Deuxième dilemme..."]
+
+En français, fun et créatif."""
+        result = await self._generate_json(prompt)
+        if isinstance(result, list):
+            return result
+        return [str(result)]
+
     async def check_commu_answer(
         self, expected_answers: list[dict], given: str
     ) -> dict | None:

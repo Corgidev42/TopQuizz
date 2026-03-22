@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback } from "react";
 import { connectSocket, getSocket } from "../socket";
 import { useGameStore } from "../stores/gameStore";
 import { pickBestJoinUrl } from "../utils/network";
@@ -10,6 +10,15 @@ export function useSocket() {
 
     const onConnect = () => {
       useGameStore.setState({ connected: true, mySid: socket.id ?? null });
+
+      const { gameId, playerToken, role } = store();
+      if (gameId && playerToken && role) {
+        socket.emit("rejoin_game", {
+          game_id: gameId,
+          token: playerToken,
+          role,
+        });
+      }
     };
 
     const onDisconnect = () => {
@@ -35,6 +44,7 @@ export function useSocket() {
         gameId: data.game_id,
         joinUrl: joinUrlBase,
         presets: data.presets ?? [],
+        playerToken: data.token ?? null,
       });
 
       if (data?.game_id) {
@@ -53,7 +63,11 @@ export function useSocket() {
           ? `${origin}/play?game=${String(data.game_id).toUpperCase()}`
           : data.join_url;
 
-      useGameStore.setState({ gameId: data.game_id, joinUrl: joinUrlBase });
+      useGameStore.setState({
+        gameId: data.game_id,
+        joinUrl: joinUrlBase,
+        playerToken: data.token ?? null,
+      });
 
       if (data?.game_id) {
         pickBestJoinUrl(data.game_id, joinUrlBase)
@@ -65,7 +79,44 @@ export function useSocket() {
     };
 
     const onJoined = (data: any) => {
-      useGameStore.setState({ gameId: data.game_id, myPlayer: data.player });
+      useGameStore.setState({
+        gameId: data.game_id,
+        myPlayer: data.player,
+        playerToken: data.token ?? null,
+      });
+    };
+
+    const onRejoinSuccess = (data: any) => {
+      const updates: any = {
+        gameId: data.game_id,
+        role: data.role,
+        playerToken: data.token,
+      };
+      if (data.player) {
+        updates.myPlayer = data.player;
+      }
+      if (data.join_url) {
+        updates.joinUrl = data.join_url;
+      }
+      if (data.presets) {
+        updates.presets = data.presets;
+      }
+      useGameStore.setState(updates);
+    };
+
+    const onRejoinFailed = () => {
+      useGameStore.setState({
+        gameId: null,
+        playerToken: null,
+        role: null,
+        myPlayer: null,
+        gameState: null,
+      });
+    };
+
+    const onGameCancelled = () => {
+      useGameStore.getState().reset();
+      window.location.href = "/";
     };
 
     const onError = (data: any) => {
@@ -106,6 +157,9 @@ export function useSocket() {
     socket.on("game_created", onGameCreated);
     socket.on("tv_connected", onTvConnected);
     socket.on("joined", onJoined);
+    socket.on("rejoin_success", onRejoinSuccess);
+    socket.on("rejoin_failed", onRejoinFailed);
+    socket.on("game_cancelled", onGameCancelled);
     socket.on("error", onError);
     socket.on("answer_correct", onAnswerCorrect);
     socket.on("answer_wrong", onAnswerWrong);
@@ -118,6 +172,9 @@ export function useSocket() {
       socket.off("game_created", onGameCreated);
       socket.off("tv_connected", onTvConnected);
       socket.off("joined", onJoined);
+      socket.off("rejoin_success", onRejoinSuccess);
+      socket.off("rejoin_failed", onRejoinFailed);
+      socket.off("game_cancelled", onGameCancelled);
       socket.off("error", onError);
       socket.off("answer_correct", onAnswerCorrect);
       socket.off("answer_wrong", onAnswerWrong);

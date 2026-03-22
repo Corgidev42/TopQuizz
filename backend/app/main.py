@@ -1,4 +1,5 @@
 import socketio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -6,8 +7,16 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.routes import game, host, media, ai
 from app.sockets.events import register_events
+from app.services.game_manager import game_manager
 
-fastapi_app = FastAPI(title="TopQuizz")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await game_manager.init_redis()
+    yield
+
+
+fastapi_app = FastAPI(title="TopQuizz", lifespan=lifespan)
 
 fastapi_app.add_middleware(
     CORSMiddleware,
