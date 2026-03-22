@@ -158,6 +158,9 @@ export default function TVView() {
                     : ""
                 } ${gameState.active_answerer === s.sid ? "ring-2 ring-brand-orange" : ""}`}
               >
+                {s.avatar_emoji ? (
+                  <span className="text-lg leading-none">{s.avatar_emoji}</span>
+                ) : null}
                 <div
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: s.color }}

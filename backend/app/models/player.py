@@ -10,6 +10,8 @@ class Player(BaseModel):
     is_eliminated: bool = False
     is_connected: bool = True
     token: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    user_id: str | None = None
+    avatar_emoji: str | None = None
 
 
 PLAYER_COLORS: list[str] = [

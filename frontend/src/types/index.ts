@@ -35,6 +35,7 @@ export interface Player {
   score: number;
   is_eliminated: boolean;
   is_connected: boolean;
+  avatar_emoji?: string | null;
 }
 
 export interface Question {
@@ -57,6 +58,7 @@ export interface ScoreEntry {
   pseudo: string;
   color: string;
   score: number;
+  avatar_emoji?: string | null;
 }
 
 export interface DilemmeSubmission {

@@ -1,6 +1,6 @@
 # Makefile for TopQuizz
 
-.PHONY: help up down restart logs build ps shell-backend shell-frontend clean
+.PHONY: help up down restart logs build ps shell-backend shell-frontend clean cert
 
 # Colors
 BLUE = \033[36m
@@ -18,9 +18,15 @@ help:
 	@echo "  make shell-frontend  - Open a shell in the frontend container"
 	@echo "  make clean           - Remove unused Docker images and volumes"
 
-up: 
+cert:
+	bash nginx/generate-cert.sh $$(ipconfig getifaddr en0)
+
+up: cert
 	TOPQUIZZ_LOCAL_IP=$$(ipconfig getifaddr en0) docker compose up -d
 	open "https://$$(ipconfig getifaddr en0)/host"
+
+build: cert
+	docker compose up -d --build
 
 down:
 	docker compose down
@@ -30,9 +36,6 @@ restart:
 
 logs:
 	docker compose logs -f
-
-build:
-	docker compose up -d --build
 
 ps:
 	docker compose ps

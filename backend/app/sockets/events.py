@@ -7,6 +7,7 @@ import time
 import socketio
 
 from app.services.game_manager import game_manager, GameSession, DEFAULT_PRESETS
+from app.services import player_accounts
 from app.services.ai_router import get_ai_for_session
 from app.services.audio_streamer import get_audio_streamer
 from app.services.fuzzy_match import fuzzy_match
@@ -19,6 +20,34 @@ from app.models.enums import (
 )
 from app.models.question import Question, ModuleConfig
 from app.config import settings
+
+
+async def _record_final_stats_if_needed(session: GameSession):
+    """Enregistre scores / victoires / historique pour les joueurs connectés à un compte."""
+    if session.stats_recorded:
+        return
+    session.stats_recorded = True
+    scores = session.get_scores()
+    if not scores:
+        return
+    max_score = scores[0]["score"]
+    total_players = len(scores)
+    for i, row in enumerate(scores):
+        sid = row["sid"]
+        p = session.players.get(sid)
+        if not p or not p.user_id:
+            continue
+        rank = i + 1
+        won = row["score"] == max_score
+        await player_accounts.record_game_for_user(
+            p.user_id,
+            session.id,
+            p.pseudo,
+            int(row["score"]),
+            rank,
+            total_players,
+            won,
+        )
 
 
 def register_events(sio: socketio.AsyncServer):
@@ -61,7 +90,7 @@ def register_events(sio: socketio.AsyncServer):
             session.host_sid = sid
             await sio.enter_room(sid, session.id)
             local_ip = settings.local_ip
-            join_url = f"http://{local_ip}:3000/play?game={session.id}"
+            join_url = f"https://{local_ip}/play?game={session.id}"
             await sio.emit(
                 "rejoin_success",
                 {
@@ -81,7 +110,7 @@ def register_events(sio: socketio.AsyncServer):
             session.tv_sid = sid
             await sio.enter_room(sid, session.id)
             local_ip = settings.local_ip
-            join_url = f"http://{local_ip}:3000/play?game={session.id}"
+            join_url = f"https://{local_ip}/play?game={session.id}"
             await sio.emit(
                 "rejoin_success",
                 {"role": "tv", "game_id": session.id, "token": session.tv_token, "join_url": join_url},
@@ -117,6 +146,7 @@ def register_events(sio: socketio.AsyncServer):
                             "sid": sid,
                             "pseudo": player.pseudo,
                             "color": player.color,
+                            "avatar_emoji": player.avatar_emoji,
                         },
                     },
                     room=sid,
@@ -138,7 +168,7 @@ def register_events(sio: socketio.AsyncServer):
         await sio.enter_room(sid, session.id)
 
         local_ip = settings.local_ip
-        join_url = f"http://{local_ip}:3000/play?game={session.id}"
+        join_url = f"https://{local_ip}/play?game={session.id}"
 
         await sio.emit(
             "game_created",
@@ -500,7 +530,7 @@ def register_events(sio: socketio.AsyncServer):
         await sio.enter_room(sid, session.id)
 
         local_ip = settings.local_ip
-        join_url = f"http://{local_ip}:3000/play?game={session.id}"
+        join_url = f"https://{local_ip}/play?game={session.id}"
 
         await sio.emit(
             "tv_connected",
@@ -542,7 +572,20 @@ def register_events(sio: socketio.AsyncServer):
             )
             return
 
-        player = session.add_player(sid, pseudo)
+        auth_token = (data.get("auth_token") or "").strip()
+        user_id = None
+        avatar_emoji = None
+        if auth_token:
+            uid = await player_accounts.resolve_auth_token(auth_token)
+            if uid:
+                u = await player_accounts.get_user_by_id(uid)
+                if u:
+                    user_id = uid
+                    avatar_emoji = u.get("avatar_emoji")
+
+        player = session.add_player(
+            sid, pseudo, user_id=user_id, avatar_emoji=avatar_emoji
+        )
         await sio.enter_room(sid, session.id)
 
         await sio.emit(
@@ -552,6 +595,7 @@ def register_events(sio: socketio.AsyncServer):
                     "sid": player.sid,
                     "pseudo": player.pseudo,
                     "color": player.color,
+                    "avatar_emoji": player.avatar_emoji,
                 },
                 "game_id": session.id,
                 "token": player.token,
@@ -930,6 +974,7 @@ def register_events(sio: socketio.AsyncServer):
                 session.phase = GamePhase.FINAL_RESULTS
                 streamer = get_audio_streamer()
                 streamer.cleanup_session(session.id)
+                await _record_final_stats_if_needed(session)
                 await game_manager.persist(session)
                 await sio_server.emit(
                     "game_state", session.to_dict(), room=session.id

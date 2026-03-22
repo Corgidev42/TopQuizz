@@ -26,6 +26,10 @@ class RedisStore:
     def available(self) -> bool:
         return self._redis is not None
 
+    def client(self) -> aioredis.Redis | None:
+        """Raw Redis client for extended features (player accounts, etc.)."""
+        return self._redis
+
     async def save_session(self, game_id: str, session_dict: dict):
         if not self._redis:
             return

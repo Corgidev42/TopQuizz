@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSocket } from "./hooks/useSocket";
 import { useGameStore } from "./stores/gameStore";
@@ -6,6 +6,9 @@ import TVView from "./views/TVView";
 import PlayerView from "./views/PlayerView";
 import HostView from "./views/HostView";
 import JoinView from "./views/JoinView";
+import AccountView from "./views/AccountView";
+import AdminView from "./views/AdminView";
+import LeaderboardView from "./views/LeaderboardView";
 import Logo from "./components/shared/Logo";
 import ErrorBoundary from "./components/shared/ErrorBoundary";
 
@@ -74,20 +77,53 @@ function HomePage() {
         ))}
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl w-full mt-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.75, duration: 0.45 }}
+        >
+          <Link
+            to="/admin"
+            className="card-glass block hover:border-brand-orange/50 transition-all duration-300 text-center py-6 px-4"
+          >
+            <div className="text-3xl mb-2">🛡️</div>
+            <h2 className="text-lg font-bold text-brand-orange">Administration</h2>
+            <p className="text-neutral-400 text-sm mt-1">
+              Gérer les comptes joueurs
+            </p>
+          </Link>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.82, duration: 0.45 }}
+        >
+          <Link
+            to="/leaderboard"
+            className="card-glass block hover:border-brand-orange/50 transition-all duration-300 text-center py-6 px-4"
+          >
+            <div className="text-3xl mb-2">🏆</div>
+            <h2 className="text-lg font-bold text-brand-orange">Classement</h2>
+            <p className="text-neutral-400 text-sm mt-1">
+              All-time : points & victoires
+            </p>
+          </Link>
+        </motion.div>
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8, duration: 0.5 }}
-        className="mt-16 card-glass max-w-2xl w-full"
+        transition={{ delay: 0.9, duration: 0.5 }}
+        className="mt-12 card-glass max-w-2xl w-full"
       >
         <h3 className="text-lg font-bold mb-3 text-brand-orange">
           Features à venir
         </h3>
         <ul className="space-y-2 text-neutral-300 text-sm">
           {[
-            "Comptes joueurs avec email + avatar + statistiques",
-            "Classement all-time et historique des parties",
-            "Avatars et personnalisation du profil joueur",
+            'Mode « Alibi » — Débat et investigation entre joueurs',
           ].map((feat) => (
             <li key={feat} className="flex items-center gap-2">
               <span className="text-brand-orange">●</span>
@@ -155,6 +191,9 @@ function AnimatedRoutes() {
           <Route path="/play" element={<PlayerView />} />
           <Route path="/host" element={<HostView />} />
           <Route path="/join" element={<JoinView />} />
+          <Route path="/account" element={<AccountView />} />
+          <Route path="/admin" element={<AdminView />} />
+          <Route path="/leaderboard" element={<LeaderboardView />} />
         </Routes>
       </motion.div>
     </AnimatePresence>

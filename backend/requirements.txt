@@ -11,3 +11,5 @@ Pillow==10.4.0
 aiofiles==24.1.0
 yt-dlp==2024.11.04
 redis[hiredis]==5.2.1
+passlib[bcrypt]==1.7.4
+email-validator==2.2.0

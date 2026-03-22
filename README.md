@@ -219,13 +219,15 @@ Le Host peut aussi **créer un programme personnalisé** en choisissant les modu
 - **IA :** Google Gemini 2.0 Flash
 - **Infra :** Docker Compose
 
+## ✅ Comptes & stats (récent)
+
+- 👤 Comptes joueurs (email + mot de passe), avatar emoji, stats cumulées
+- 🏆 Classement all-time (points / victoires) et historique des parties (Redis requis)
+- 🖼️ Profil éditable depuis `/account` ; en rejoignant une partie connecté, les stats sont enregistrées en fin de partie (`FINAL_RESULTS`)
+
 ## 🚧 Features à Venir
 
-- 👤 Comptes joueurs (email + avatar + statistiques)
-- 🏆 Classement all-time et historique des parties
 - 🕵️ **Mode "Alibi"** — Inspiré du concept de Squeezie : investigation et débat entre joueurs
-- 🎨 Thèmes visuels personnalisables
-- 🖼️ Avatars et personnalisation du profil
 - Ajout d'une IA tres fort pour la partie Blindtest qui va vraiment chercher sur internet les morceaux tendance, ou des ost d'anime connu etc... fin un truc bien quoi, qui va ensuite telecharger les audios pour que pendant le lancement sa soit nickel, ou alors pas besoin de les telecharger et juste lire directement l'audio ? car c'est vrai que je vois pas l'interet de dl la musique
 
 ## 🐞 Bugs Corrigés / Améliorations Récentes

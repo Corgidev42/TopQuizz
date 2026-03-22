@@ -24,6 +24,11 @@ export default function PlayerList({ players }: Props) {
               : "bg-surface border-neutral-800 opacity-40"
           }`}
         >
+          {player.avatar_emoji ? (
+            <span className="text-lg leading-none" aria-hidden>
+              {player.avatar_emoji}
+            </span>
+          ) : null}
           <div
             className="w-4 h-4 rounded-full flex-shrink-0"
             style={{ backgroundColor: player.color }}

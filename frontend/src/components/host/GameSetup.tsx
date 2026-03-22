@@ -130,6 +130,9 @@ export default function GameSetup({
               key={sid}
               className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-light text-sm"
             >
+              {p.avatar_emoji ? (
+                <span className="text-base leading-none">{p.avatar_emoji}</span>
+              ) : null}
               <div
                 className="w-3 h-3 rounded-full"
                 style={{ backgroundColor: p.color }}

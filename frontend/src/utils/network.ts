@@ -75,27 +75,22 @@ export async function pickBestJoinUrl(
   fallbackUrl?: string | null
 ): Promise<string | null> {
   const loc = window.location;
-  const protocol = loc.protocol || "http:";
-  const basePort = loc.port ? `:${loc.port}` : "";
   const safeGameId = (gameId || "").toUpperCase();
   const currentHost = loc.hostname || "";
 
-  // If already served on a LAN hostname/IP (or a real domain), keep it.
+  // Always use HTTPS through nginx (port 443, no explicit port needed)
+  const buildUrl = (host: string) =>
+    `https://${host}/play?game=${encodeURIComponent(safeGameId)}`;
+
   if (currentHost && !isLoopbackHost(currentHost)) {
-    return `${protocol}//${currentHost}${basePort}/play?game=${encodeURIComponent(
-      safeGameId
-    )}`;
+    return buildUrl(currentHost);
   }
 
-  // Otherwise (localhost), try to discover a LAN IP
+  // Localhost → try to discover a LAN IP
   const candidates = await detectLanHostCandidates();
 
   if (candidates.length > 0) {
-    const best = candidates[0];
-    // Garder protocole/port actuels, ne remplacer que le hostname
-    return `${protocol}//${best}${basePort}/play?game=${encodeURIComponent(
-      safeGameId
-    )}`;
+    return buildUrl(candidates[0]);
   }
   return fallbackUrl ?? null;
 }

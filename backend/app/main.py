@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.routes import game, host, media, ai
+from app.routes import game, host, media, ai, players
 from app.sockets.events import register_events
 from app.services.game_manager import game_manager
 
@@ -32,6 +32,7 @@ fastapi_app.include_router(game.router, prefix="/api/game", tags=["game"])
 fastapi_app.include_router(host.router, prefix="/api/host", tags=["host"])
 fastapi_app.include_router(media.router, prefix="/api/media", tags=["media"])
 fastapi_app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
+fastapi_app.include_router(players.router, prefix="/api/players", tags=["players"])
 
 sio = socketio.AsyncServer(
     async_mode="asgi",

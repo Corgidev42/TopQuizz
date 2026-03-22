@@ -100,10 +100,17 @@ export default function PlayerView() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6">
         <div className="card text-center">
-          <div
-            className="w-16 h-16 rounded-full mx-auto mb-4"
-            style={{ backgroundColor: myPlayer.color }}
-          />
+          <div className="flex justify-center items-center gap-3 mb-4">
+            {myPlayer.avatar_emoji ? (
+              <span className="text-5xl" aria-hidden>
+                {myPlayer.avatar_emoji}
+              </span>
+            ) : null}
+            <div
+              className="w-16 h-16 rounded-full shrink-0"
+              style={{ backgroundColor: myPlayer.color }}
+            />
+          </div>
           <h2 className="text-2xl font-bold">{myPlayer.pseudo}</h2>
           <p className="text-neutral-400 mt-2">
             Partie{" "}

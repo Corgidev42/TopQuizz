@@ -21,6 +21,11 @@ export default function Scoreboard({ scores }: Props) {
             <span className="w-8 text-center font-bold text-neutral-400">
               #{i + 1}
             </span>
+            {entry.avatar_emoji ? (
+              <span className="text-2xl leading-none" aria-hidden>
+                {entry.avatar_emoji}
+              </span>
+            ) : null}
             <div
               className="w-5 h-5 rounded-full flex-shrink-0"
               style={{ backgroundColor: entry.color }}

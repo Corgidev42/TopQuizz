@@ -57,10 +57,25 @@ class GameSession:
         self.ai_provider: str = "gemini"  # "gemini" | "ollama"
         self.ollama_model: str | None = None
 
-    def add_player(self, sid: str, pseudo: str) -> Player:
+        # Stats persistantes (comptes joueurs) — une seule fois par partie
+        self.stats_recorded: bool = False
+
+    def add_player(
+        self,
+        sid: str,
+        pseudo: str,
+        user_id: str | None = None,
+        avatar_emoji: str | None = None,
+    ) -> Player:
         color = PLAYER_COLORS[self._color_index % len(PLAYER_COLORS)]
         self._color_index += 1
-        player = Player(sid=sid, pseudo=pseudo, color=color)
+        player = Player(
+            sid=sid,
+            pseudo=pseudo,
+            color=color,
+            user_id=user_id,
+            avatar_emoji=avatar_emoji,
+        )
         self.players[sid] = player
         return player
 
@@ -130,6 +145,7 @@ class GameSession:
                     "pseudo": p.pseudo,
                     "color": p.color,
                     "score": p.score,
+                    "avatar_emoji": p.avatar_emoji,
                 }
                 for p in self.players.values()
             ],
@@ -184,6 +200,7 @@ class GameSession:
                     "score": p.score,
                     "is_eliminated": p.is_eliminated,
                     "is_connected": p.is_connected,
+                    "avatar_emoji": p.avatar_emoji,
                 }
                 for sid, p in self.players.items()
             },
@@ -254,6 +271,7 @@ class GameSession:
             "dilemme_prompt": self.dilemme_prompt,
             "dilemme_round_index": self.dilemme_round_index,
             "dilemme_rounds": self.dilemme_rounds,
+            "stats_recorded": self.stats_recorded,
         }
 
     @classmethod
@@ -293,6 +311,7 @@ class GameSession:
         session.dilemme_prompt = data.get("dilemme_prompt")
         session.dilemme_round_index = data.get("dilemme_round_index", -1)
         session.dilemme_rounds = data.get("dilemme_rounds", [])
+        session.stats_recorded = data.get("stats_recorded", False)
         return session
 
 

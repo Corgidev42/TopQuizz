@@ -10,8 +10,8 @@ router = APIRouter()
 async def get_game_info():
     return {
         "local_ip": settings.local_ip,
-        "frontend_url": f"http://{settings.local_ip}:3000",
-        "backend_url": f"http://{settings.local_ip}:8000",
+        "frontend_url": f"https://{settings.local_ip}",
+        "backend_url": f"https://{settings.local_ip}",
     }
 
 

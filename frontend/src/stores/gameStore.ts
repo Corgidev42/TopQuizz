@@ -12,7 +12,11 @@ interface GameStore {
   gameId: string | null;
   mySid: string | null;
   role: "player" | "host" | "tv" | null;
-  myPlayer: { pseudo: string; color: string } | null;
+  myPlayer: {
+    pseudo: string;
+    color: string;
+    avatar_emoji?: string | null;
+  } | null;
   playerToken: string | null;
 
   gameState: GameState | null;
@@ -26,7 +30,13 @@ interface GameStore {
   setGameId: (id: string | null) => void;
   setMySid: (sid: string | null) => void;
   setRole: (role: "player" | "host" | "tv" | null) => void;
-  setMyPlayer: (p: { pseudo: string; color: string } | null) => void;
+  setMyPlayer: (
+    p: {
+      pseudo: string;
+      color: string;
+      avatar_emoji?: string | null;
+    } | null,
+  ) => void;
   setPlayerToken: (t: string | null) => void;
   setGameState: (s: GameState) => void;
   setJoinUrl: (url: string | null) => void;
@@ -41,7 +51,11 @@ const initial = {
   gameId: null as string | null,
   mySid: null as string | null,
   role: null as "player" | "host" | "tv" | null,
-  myPlayer: null as { pseudo: string; color: string } | null,
+  myPlayer: null as {
+    pseudo: string;
+    color: string;
+    avatar_emoji?: string | null;
+  } | null,
   playerToken: null as string | null,
   gameState: null as GameState | null,
   joinUrl: null as string | null,

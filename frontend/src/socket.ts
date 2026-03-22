@@ -9,13 +9,28 @@ const BACKEND_URL = isViteDev
   : "/";
 const SOCKET_PATH = "/socket.io";
 
+// Derrière nginx + HTTPS auto-signé, le navigateur refuse souvent l’upgrade wss
+// alors que le long-polling HTTPS fonctionne. Engine.IO upgrade quand même par défaut
+// → erreurs console en boucle. On désactive l’upgrade hors dev Vite.
+const socketIoOpts = isViteDev
+  ? {
+      transports: ["websocket", "polling"] as string[],
+      upgrade: true,
+    }
+  : {
+      transports: ["polling"] as string[],
+      upgrade: false,
+    };
+
 console.log(
   "[Socket] Config -> target:",
   BACKEND_URL,
   "path:",
   SOCKET_PATH,
   "origin:",
-  window.location.origin
+  window.location.origin,
+  "transports:",
+  socketIoOpts.transports,
 );
 
 let socket: Socket | null = null;
@@ -24,10 +39,11 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(BACKEND_URL, {
       path: SOCKET_PATH,
-      transports: ["websocket", "polling"],
+      ...socketIoOpts,
       autoConnect: false,
-      reconnectionAttempts: 5,
-      timeout: 8000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      timeout: 20000,
     });
 
     socket.on("connect_error", (err) => {
