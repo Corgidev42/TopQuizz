@@ -236,6 +236,19 @@ export default function HostView() {
         </div>
       )}
 
+      {phase === "ttmc_verifying" && gameState.ttmc && (
+        <div className="card text-center space-y-3">
+          <div className="text-5xl animate-pulse">🤖</div>
+          <h2 className="text-2xl font-black">Vérification en cours...</h2>
+          <p className="text-neutral-400 text-sm">
+            L'IA compare toutes les réponses du round en un seul appel.
+          </p>
+          <p className="text-neutral-500 text-sm">
+            {gameState.ttmc.answers_count} réponse(s) collectée(s)
+          </p>
+        </div>
+      )}
+
       {/* TTMC — RESULT phase */}
       {phase === "ttmc_result" && gameState.ttmc && (
         <div className="space-y-4">

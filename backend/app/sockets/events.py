@@ -23,22 +23,7 @@ from app.models.question import Question, ModuleConfig
 from app.config import settings
 from app.services.fuzzy_match import fuzzy_match
 
-
-async def _generate_ttmc_themes(ai, base_theme: str, num: int) -> list[str]:
-    """Generate N sub-themes related to base_theme for TTMC rounds."""
-    try:
-        prompt = f"""Génère exactement {num} sous-thèmes de quiz originaux et amusants liés à "{base_theme}".
-Chaque sous-thème doit être une catégorie précise adaptée à un quiz de culture générale.
-Exemples : "Les voitures des années 80", "Les super-héros Marvel", "La cuisine italienne"
-
-Retourne UNIQUEMENT un tableau JSON de strings. En français."""
-        result = await ai.gemini._generate_json(prompt) if hasattr(ai, "gemini") else []
-        if isinstance(result, list) and result:
-            return [str(r) for r in result[:num]]
-    except Exception:
-        pass
-    # Fallback: just use the base theme N times
-    return [base_theme] * num
+TTMC_ANSWER_TIME_LIMIT_SECONDS = 20.0
 
 
 async def _record_final_stats_if_needed(session: GameSession):
@@ -223,6 +208,8 @@ def register_events(sio: socketio.AsyncServer):
         game_id = data.get("game_id")
         session = game_manager.get_session(game_id)
         if not session or session.host_sid != sid:
+            return
+        if session.phase != GamePhase.LOBBY:
             return
 
         modules_data = data.get("modules", [])
@@ -814,7 +801,9 @@ def register_events(sio: socketio.AsyncServer):
         current_round = session.ttmc_rounds[session.ttmc_round_index]
         session.ttmc_theme = current_round["theme"]
         session.ttmc_picks = {}
+        session.ttmc_submitted_answers = {}
         session.ttmc_answers = {}
+        session.ttmc_verification_in_progress = False
         session.ttmc_player_questions = {}
         session.phase = GamePhase.TTMC_PICKING
 
@@ -860,8 +849,22 @@ def register_events(sio: socketio.AsyncServer):
             await _start_ttmc_answering(sio, session)
 
     async def _start_ttmc_answering(sio_server: socketio.AsyncServer, session: GameSession):
+        async def _cancel_ttmc_answer_timeout_task():
+            task = getattr(session, "ttmc_answer_timeout_task", None)
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            session.ttmc_answer_timeout_task = None
+
         current_round = session.ttmc_rounds[session.ttmc_round_index]
         questions_by_level = current_round["questions"]  # list of 10 Question objects (index 0 = level 1)
+        session.ttmc_submitted_answers = {}
+        session.ttmc_answers = {}
+        session.ttmc_verification_in_progress = False
+        await _cancel_ttmc_answer_timeout_task()
 
         for sid, level in session.ttmc_picks.items():
             q_index = max(0, min(9, level - 1))
@@ -898,6 +901,104 @@ def register_events(sio: socketio.AsyncServer):
         await game_manager.persist(session)
         await sio_server.emit("game_state", session.to_dict(), room=session.id)
 
+        async def timeout_handler():
+            await asyncio.sleep(TTMC_ANSWER_TIME_LIMIT_SECONDS)
+            if session.phase == GamePhase.TTMC_ANSWERING and not session.ttmc_verification_in_progress:
+                await _finalize_ttmc_answers_batch(sio_server, session, reason="timeout")
+
+        session.ttmc_answer_timeout_task = asyncio.create_task(timeout_handler())
+
+    async def _finalize_ttmc_answers_batch(
+        sio_server: socketio.AsyncServer,
+        session: GameSession,
+        reason: str = "all_answered",
+    ):
+        if session.phase not in (GamePhase.TTMC_ANSWERING, GamePhase.TTMC_VERIFYING):
+            return
+        if session.ttmc_verification_in_progress:
+            return
+
+        task = getattr(session, "ttmc_answer_timeout_task", None)
+        if task and not task.done():
+            task.cancel()
+        session.ttmc_answer_timeout_task = None
+
+        connected = [p.sid for p in session.players.values() if p.is_connected]
+        for p_sid in connected:
+            session.ttmc_submitted_answers.setdefault(p_sid, "")
+
+        session.ttmc_verification_in_progress = True
+        session.phase = GamePhase.TTMC_VERIFYING
+        await game_manager.persist(session)
+        await sio_server.emit("game_state", session.to_dict(), room=session.id)
+
+        batch_entries: list[dict] = []
+        for p_sid in connected:
+            q_data = session.ttmc_player_questions.get(p_sid) or {}
+            level = session.ttmc_picks.get(p_sid, 5)
+            batch_entries.append(
+                {
+                    "player_id": p_sid,
+                    "player_pseudo": session.players.get(p_sid).pseudo if session.players.get(p_sid) else p_sid,
+                    "expected_answer": q_data.get("correct_answer", ""),
+                    "submitted_answer": session.ttmc_submitted_answers.get(p_sid, ""),
+                    "max_points": TTMC_LEVEL_POINTS.get(level, level),
+                }
+            )
+
+        ai = get_ai_for_session(session)
+        verdicts: dict[str, dict] = {}
+        try:
+            round_label = session.ttmc_theme or "TTMC"
+            verdicts = await ai.check_answers_batch(
+                question=f'Round TTMC "{round_label}" : évalue chaque réponse selon la bonne réponse associée.',
+                entries=batch_entries,
+            )
+        except Exception as e:
+            print(f"[TTMC batch check fallback] {e}")
+
+        for p_sid in connected:
+            q_data = session.ttmc_player_questions.get(p_sid) or {}
+            answer = session.ttmc_submitted_answers.get(p_sid, "")
+            correct_answer = q_data.get("correct_answer", "")
+            options = q_data.get("options")
+            level = session.ttmc_picks.get(p_sid, 5)
+            max_points = TTMC_LEVEL_POINTS.get(level, level)
+
+            v = verdicts.get(p_sid) or {}
+            is_correct = bool(v.get("correct", False))
+            points = int(v.get("score", max_points if is_correct else 0) or 0)
+            points = max(0, min(max_points, points if is_correct else 0))
+
+            # Fallback local pour QCM et sécurité si batch incomplet.
+            if p_sid not in verdicts:
+                if options:
+                    is_correct = answer == correct_answer
+                    points = max_points if is_correct else 0
+                else:
+                    is_correct = fuzzy_match(correct_answer, answer)
+                    points = max_points if is_correct else 0
+
+            if is_correct:
+                session.players[p_sid].score += points
+
+            session.ttmc_answers[p_sid] = {
+                "answer": answer,
+                "is_correct": is_correct,
+                "points": points,
+                "evaluated_by": "batch",
+            }
+
+        session.ttmc_verification_in_progress = False
+        session.phase = GamePhase.TTMC_RESULT
+        await game_manager.persist(session)
+        await sio_server.emit(
+            "ttmc_batch_checked",
+            {"reason": reason, "answers_count": len(session.ttmc_submitted_answers)},
+            room=session.id,
+        )
+        await sio_server.emit("game_state", session.to_dict(), room=session.id)
+
     @sio.event
     async def ttmc_submit_answer(sid, data):
         game_id = data.get("game_id")
@@ -907,46 +1008,26 @@ def register_events(sio: socketio.AsyncServer):
             return
         if session.phase != GamePhase.TTMC_ANSWERING:
             return
-        if sid in session.ttmc_answers:
+        if sid in session.ttmc_submitted_answers:
             return  # already answered
 
         q_data = session.ttmc_player_questions.get(sid)
         if not q_data:
             return
 
-        correct_answer = q_data.get("correct_answer", "")
-        options = q_data.get("options")
-        level = session.ttmc_picks.get(sid, 5)
-
-        # Check correctness
-        if options:
-            is_correct = answer == correct_answer
-        else:
-            is_correct = fuzzy_match(correct_answer, answer)
-            if not is_correct:
-                ai = get_ai_for_session(session)
-                is_correct = await ai.check_answer(correct_answer, answer)
-
-        points = TTMC_LEVEL_POINTS.get(level, level) if is_correct else 0
-        if is_correct:
-            session.players[sid].score += points
-
-        session.ttmc_answers[sid] = {
-            "answer": answer,
-            "is_correct": is_correct,
-            "points": points,
-        }
+        session.ttmc_submitted_answers[sid] = answer
 
         # Notify room of progress
         connected = [p.sid for p in session.players.values() if p.is_connected]
         await sio.emit(
             "ttmc_answer_received",
-            {"answers_count": len(session.ttmc_answers), "total": len(connected)},
+            {"answers_count": len(session.ttmc_submitted_answers), "total": len(connected)},
             room=session.id,
         )
+        await sio.emit("game_state", session.to_dict(), room=session.id)
 
-        if all(p_sid in session.ttmc_answers for p_sid in connected):
-            await _show_ttmc_results(sio, session)
+        if all(p_sid in session.ttmc_submitted_answers for p_sid in connected):
+            await _finalize_ttmc_answers_batch(sio, session, reason="all_answered")
         else:
             await game_manager.persist(session)
 
@@ -956,21 +1037,11 @@ def register_events(sio: socketio.AsyncServer):
         session = game_manager.get_session(game_id)
         if not session or session.host_sid != sid:
             return
-        if session.phase == GamePhase.TTMC_ANSWERING:
-            await _show_ttmc_results(sio, session)
+        if session.phase in (GamePhase.TTMC_ANSWERING, GamePhase.TTMC_VERIFYING):
+            await _finalize_ttmc_answers_batch(sio, session, reason="host_forced")
 
     async def _show_ttmc_results(sio_server: socketio.AsyncServer, session: GameSession):
-        # Mark all non-answered players as 0
-        for p in session.players.values():
-            if p.is_connected and p.sid not in session.ttmc_answers:
-                session.ttmc_answers[p.sid] = {
-                    "answer": "",
-                    "is_correct": False,
-                    "points": 0,
-                }
-        session.phase = GamePhase.TTMC_RESULT
-        await game_manager.persist(session)
-        await sio_server.emit("game_state", session.to_dict(), room=session.id)
+        await _finalize_ttmc_answers_batch(sio_server, session, reason="legacy")
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -1156,11 +1227,11 @@ def register_events(sio: socketio.AsyncServer):
         if module_config.module_type == ModuleType.TTMC:
             theme = module_config.theme or "Culture Générale"
             num_rounds = module_config.num_questions
-            # Generate sub-themes for each round using AI
-            sub_themes = await _generate_ttmc_themes(ai, theme, num_rounds)
+            pack_rounds = await ai.generate_ttmc_full_rounds(theme, num_rounds)
             rounds: list[dict] = []
-            for sub_theme in sub_themes:
-                raw_qs = await ai.generate_ttmc_questions(sub_theme)
+            for round_data in pack_rounds:
+                sub_theme = (round_data.get("theme") or theme).strip() or theme
+                raw_qs = round_data.get("questions") or []
                 questions: list[Question] = []
                 for q in raw_qs:
                     level = int(q.get("level", 5))
@@ -1254,7 +1325,9 @@ def register_events(sio: socketio.AsyncServer):
                 session.ttmc_rounds = data.get("ttmc_rounds", [])
                 session.ttmc_round_index = -1
                 session.ttmc_picks = {}
+                session.ttmc_submitted_answers = {}
                 session.ttmc_answers = {}
+                session.ttmc_verification_in_progress = False
                 session.ttmc_player_questions = {}
                 session.ttmc_theme = None
                 session.phase = GamePhase.MODULE_INTRO

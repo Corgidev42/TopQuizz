@@ -597,6 +597,11 @@ export default function PlayerView() {
   }
 
   // TTMC — RESULT phase
+  if (phase === "ttmc_verifying") {
+    return <WaitingScreen message="Vérification en cours..." emoji="🤖" />;
+  }
+
+  // TTMC — RESULT phase
   if (phase === "ttmc_result" && gameState.ttmc) {
     const results = gameState.ttmc.results ?? [];
     const myResult = results.find((r) => r.sid === mySid);

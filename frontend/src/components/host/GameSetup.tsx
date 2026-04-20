@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Spinner from "../shared/Spinner";
 import type { Player, Preset, ModuleConfig, ModuleType, Difficulty } from "../../types";
 import { MODULE_LABELS, MODULE_ICONS } from "../../types";
@@ -41,6 +41,7 @@ export default function GameSetup({
   ]);
 
   const [loading, setLoading] = useState(false);
+  const startGuardRef = useRef(false);
   const playerCount = Object.keys(players).length;
 
   // AI selection (persisted)
@@ -58,8 +59,9 @@ export default function GameSetup({
   useEffect(() => {
     if (lastErrorAt && loading) {
       setLoading(false);
+      startGuardRef.current = false;
     }
-  }, [lastErrorAt]);
+  }, [lastErrorAt, loading]);
 
   const loadOllamaModels = async () => {
     setLoadingModels(true);
@@ -280,6 +282,8 @@ export default function GameSetup({
       {/* Start button */}
       <button
         onClick={() => {
+          if (playerCount === 0 || loading || startGuardRef.current) return;
+          startGuardRef.current = true;
           setLoading(true);
           const ai =
             aiProvider === "ollama"

@@ -14,6 +14,7 @@ export type GamePhase =
   | "dilemme_vote_result"
   | "ttmc_picking"
   | "ttmc_answering"
+  | "ttmc_verifying"
   | "ttmc_result";
 
 export type ModuleType =
@@ -106,6 +107,7 @@ export interface TTMCState {
   total_rounds: number;
   picks_count: number;
   answers_count: number;
+  verifying?: boolean;
   results?: TTMCPlayerResult[];
 }
 

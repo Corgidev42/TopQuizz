@@ -55,10 +55,21 @@ class GeminiEngine:
                 return None
         return None
 
-    async def _generate_content(self, payload):
-        start = time.perf_counter()
+    @staticmethod
+    def _json_response_generation_config():
+        """Force une sortie JSON parsable (JSON Mode Gemini)."""
         try:
-            result = await self.model.generate_content_async(payload)
+            return genai.GenerationConfig(response_mime_type="application/json")
+        except Exception:
+            return None
+
+    async def _generate_content(self, payload, generation_config=None):
+        start = time.perf_counter()
+        kwargs = {}
+        if generation_config is not None:
+            kwargs["generation_config"] = generation_config
+        try:
+            result = await self.model.generate_content_async(payload, **kwargs)
             elapsed = time.perf_counter() - start
             if elapsed >= 3.0:
                 print(f"[AI] Gemini({self._model_name}) ok in {elapsed:.2f}s")
@@ -79,7 +90,7 @@ class GeminiEngine:
                 try:
                     self._model_name = candidate
                     self.model = genai.GenerativeModel(candidate)
-                    result = await self.model.generate_content_async(payload)
+                    result = await self.model.generate_content_async(payload, **kwargs)
                     elapsed = time.perf_counter() - start
                     if elapsed >= 3.0:
                         print(f"[AI] Gemini fallback({self._model_name}) ok in {elapsed:.2f}s")
@@ -127,14 +138,15 @@ class GeminiEngine:
                 return [p[0] + suffix, *p[1:]]
             return None
 
-        response = await self._generate_content(payload)
+        json_cfg = self._json_response_generation_config()
+        response = await self._generate_content(payload, generation_config=json_cfg)
         try:
             return self._parse_json(response.text)
         except Exception:
             retry_payload = with_strict_json(payload)
             if retry_payload is None:
                 raise
-            response2 = await self._generate_content(retry_payload)
+            response2 = await self._generate_content(retry_payload, generation_config=json_cfg)
             return self._parse_json(response2.text)
 
     @staticmethod
@@ -197,6 +209,68 @@ IMPORTANT : pas de préfixe lettre dans les options. En français."""
             if q.get("correct_answer"):
                 q["correct_answer"] = self._strip_option_prefix(q["correct_answer"])
         return raw
+
+    def _normalize_ttmc_question_dict(self, q: dict) -> dict:
+        if q.get("options"):
+            q["options"] = [self._strip_option_prefix(o) for o in q["options"]]
+        if q.get("correct_answer"):
+            q["correct_answer"] = self._strip_option_prefix(q["correct_answer"])
+        return q
+
+    async def generate_ttmc_full_rounds(self, base_theme: str, num_rounds: int) -> list[dict]:
+        """Un seul appel API : N manches TTMC, chacune avec 10 niveaux (sous-thèmes + QCM)."""
+        n = max(1, min(20, int(num_rounds)))
+        prompt = f"""Tu conçois un pack pour le jeu « Tu te mets combien ? » (TTMC).
+Thème général : « {base_theme} ».
+Nombre de manches (rounds) : exactement {n}.
+
+Pour chaque manche :
+- Choisis un sous-thème court, précis et amusant, dérivé du thème général (comme une catégorie de quiz).
+- Génère exactement 10 questions QCM à 4 options, difficulté croissante du niveau 1 (très facile) au niveau 10 (expert).
+- Une seule bonne réponse par question. Les options ne doivent PAS commencer par « A. », « B) », etc.
+
+Retourne UNIQUEMENT un objet JSON de cette forme (pas de texte hors JSON) :
+{{
+  "rounds": [
+    {{
+      "theme": "Sous-thème de la manche 1",
+      "questions": [
+        {{"level": 1, "question": "...", "options": ["...", "...", "...", "..."], "correct_answer": "..."}},
+        {{"level": 2, "question": "...", "options": ["...", "...", "...", "..."], "correct_answer": "..."}}
+      ]
+    }}
+  ]
+}}
+
+Contraintes strictes :
+- Le tableau « rounds » contient exactement {n} objets.
+- Chaque « questions » contient exactement 10 objets, avec level 1 puis 2 … jusqu'à 10 dans cet ordre.
+- En français."""
+
+        raw = await self._generate_json(prompt)
+        if isinstance(raw, list):
+            rounds = raw
+        elif isinstance(raw, dict):
+            rounds = raw.get("rounds") or []
+        else:
+            rounds = []
+
+        normalized: list[dict] = []
+        for r in rounds:
+            if not isinstance(r, dict):
+                continue
+            theme = (r.get("theme") or base_theme).strip() or base_theme
+            qs_in = r.get("questions") or []
+            questions: list[dict] = []
+            for q in qs_in:
+                if not isinstance(q, dict):
+                    continue
+                questions.append(self._normalize_ttmc_question_dict(dict(q)))
+            normalized.append({"theme": theme, "questions": questions})
+
+        while len(normalized) < n:
+            normalized.append({"theme": base_theme, "questions": []})
+        return normalized[:n]
 
     async def generate_memory_challenge(self, theme: str = "random") -> dict:
         """Generate a memory challenge: fetch image, analyze, generate questions."""
@@ -346,6 +420,48 @@ Réponds UNIQUEMENT par "YES" ou "NO"."""
 
         response = await self._generate_content(prompt)
         return "YES" in response.text.strip().upper()
+
+    async def check_answers_batch(self, question: str, entries: list[dict]) -> dict[str, dict]:
+        """Batch semantic verification for multiple players with one API call."""
+        payload = {
+            "question": question,
+            "entries": entries,
+        }
+        prompt = f"""Tu es arbitre de quiz.
+Évalue chaque réponse de joueur par rapport à sa bonne réponse attendue.
+
+Règles :
+- Sois flexible : tolère fautes d'orthographe mineures, typos, abréviations et formulations proches.
+- Marque "correct": true uniquement si le sens est globalement correct.
+- "score" vaut "max_points" si correct, sinon 0.
+- Retourne UNIQUEMENT un JSON valide, sans texte.
+
+Format de sortie strict :
+{{
+  "<player_id>": {{
+    "correct": true,
+    "score": 10
+  }}
+}}
+
+Données à évaluer :
+{json.dumps(payload, ensure_ascii=False)}
+"""
+        raw = await self._generate_json(prompt)
+        if not isinstance(raw, dict):
+            return {}
+        out: dict[str, dict] = {}
+        for item in entries:
+            sid = str(item.get("player_id", ""))
+            max_points = int(item.get("max_points", 0) or 0)
+            data = raw.get(sid, {}) if sid else {}
+            correct = bool(data.get("correct", False)) if isinstance(data, dict) else False
+            score = int(data.get("score", max_points if correct else 0) or 0) if isinstance(data, dict) else 0
+            out[sid] = {
+                "correct": correct,
+                "score": max(0, min(max_points, score if correct else 0)),
+            }
+        return out
 
     async def generate_blindtest_suggestions(
         self, num: int, theme: str | None = None

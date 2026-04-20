@@ -18,6 +18,7 @@ class GamePhase(str, Enum):
     # TTMC phases
     TTMC_PICKING = "ttmc_picking"
     TTMC_ANSWERING = "ttmc_answering"
+    TTMC_VERIFYING = "ttmc_verifying"
     TTMC_RESULT = "ttmc_result"
 
 

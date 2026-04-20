@@ -236,6 +236,20 @@ export default function TVView() {
     );
   }
 
+  if (phase === "ttmc_verifying" && gameState.ttmc) {
+    const ttmc = gameState.ttmc;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8">
+        <div className="text-7xl mb-6 animate-pulse-slow">🤖</div>
+        <h1 className="text-4xl font-black mb-2">Vérification en cours...</h1>
+        <p className="text-neutral-400 text-xl mb-6">{ttmc.theme}</p>
+        <p className="text-neutral-500 text-lg">
+          Analyse groupée des réponses ({ttmc.answers_count} reçues)
+        </p>
+      </div>
+    );
+  }
+
   if (phase === "ttmc_result" && gameState.ttmc) {
     const ttmc = gameState.ttmc;
     const results = ttmc.results ?? [];

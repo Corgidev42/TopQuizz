@@ -67,6 +67,8 @@ class GameSession:
         self.ttmc_theme: str | None = None
         self.ttmc_picks: dict[str, int] = {}    # sid → level 1-10
         self.ttmc_player_questions: dict[str, dict] = {}  # sid → question dict
+        self.ttmc_submitted_answers: dict[str, str] = {}  # sid → answer brute
+        self.ttmc_verification_in_progress: bool = False
         self.ttmc_answers: dict[str, dict] = {}  # sid → {answer, is_correct, points, ...}
 
     def add_player(
@@ -254,13 +256,14 @@ class GameSession:
             }
 
         if self.phase in (GamePhase.TTMC_PICKING, GamePhase.TTMC_ANSWERING,
-                          GamePhase.TTMC_RESULT, GamePhase.MODULE_INTRO) and self.ttmc_rounds:
+                          GamePhase.TTMC_VERIFYING, GamePhase.TTMC_RESULT, GamePhase.MODULE_INTRO) and self.ttmc_rounds:
             ttmc_data: dict = {
                 "theme": self.ttmc_theme,
                 "round_index": self.ttmc_round_index,
                 "total_rounds": len(self.ttmc_rounds),
                 "picks_count": len(self.ttmc_picks),
-                "answers_count": len(self.ttmc_answers),
+                "answers_count": len(self.ttmc_submitted_answers),
+                "verifying": self.ttmc_verification_in_progress,
             }
             if self.phase == GamePhase.TTMC_RESULT:
                 # Reveal all results: questions, answers, scores per player
@@ -332,6 +335,8 @@ class GameSession:
             "ttmc_theme": self.ttmc_theme,
             "ttmc_picks": self.ttmc_picks,
             "ttmc_player_questions": self.ttmc_player_questions,
+            "ttmc_submitted_answers": self.ttmc_submitted_answers,
+            "ttmc_verification_in_progress": self.ttmc_verification_in_progress,
             "ttmc_answers": self.ttmc_answers,
         }
 
@@ -383,6 +388,8 @@ class GameSession:
         session.ttmc_theme = data.get("ttmc_theme")
         session.ttmc_picks = data.get("ttmc_picks", {})
         session.ttmc_player_questions = data.get("ttmc_player_questions", {})
+        session.ttmc_submitted_answers = data.get("ttmc_submitted_answers", {})
+        session.ttmc_verification_in_progress = data.get("ttmc_verification_in_progress", False)
         session.ttmc_answers = data.get("ttmc_answers", {})
         return session
 
