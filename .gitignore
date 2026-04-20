@@ -11,3 +11,4 @@ media/blindtest/*.mp3
 media/blindtest/*.mp4
 media/blindtest/*.wav
 media/blindtest/*.m4a
+.cursor/

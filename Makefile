@@ -1,6 +1,6 @@
 # Makefile for TopQuizz
 
-.PHONY: help up down restart logs build ps shell-backend shell-frontend clean cert
+.PHONY: help up down restart re logs build ps shell-backend shell-frontend clean cert
 
 # Colors
 BLUE = \033[36m
@@ -12,6 +12,7 @@ help:
 	@echo "$(BLUE)TopQuizz Commands:$(RESET)"
 	@echo "  make up              - Start the application in detached mode"
 	@echo "  make down            - Stop and remove containers"
+	@echo "  make re              - Stop, supprime les volumes BDD (Postgres), rebuild sans cache, relance tout"
 	@echo "  make restart         - Restart all containers"
 	@echo "  make logs            - Follow logs from all containers"
 	@echo "  make build           - Rebuild containers"
@@ -34,6 +35,13 @@ build: cert
 
 down:
 	docker compose down
+
+# Réinit complet : volumes Postgres + conteneurs (Redis est vidé avec le conteneur), images rebuildées.
+re: cert
+	docker compose down -v --remove-orphans
+	docker compose build --no-cache
+	TOPQUIZZ_LOCAL_IP=$$(ipconfig getifaddr en0) docker compose up -d
+	open "https://$$(ipconfig getifaddr en0)/host"
 
 restart:
 	docker compose restart
