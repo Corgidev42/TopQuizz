@@ -12,5 +12,8 @@ aiofiles==24.1.0
 yt-dlp==2024.11.04
 redis[hiredis]==5.2.1
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 email-validator==2.2.0
 asyncpg==0.30.0
+pytest==8.3.4
+pytest-asyncio==0.25.2

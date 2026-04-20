@@ -1,16 +1,40 @@
+import logging
 import socketio
+import uuid
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 from app.config import settings
+from app.http_utils import client_ip, request_id_for
 from app.routes import game, host, media, ai, players
-from app.sockets.events import register_events
-from app.services.game_manager import game_manager
+from app.services import audit_service
 from app.services import db_store
+from app.services.game_manager import game_manager
+from app.sockets.events import register_events
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s [%(name)s] %(message)s",
+)
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Corrélation des logs / audit (header X-Request-ID réutilisable côté client)."""
+
+    async def dispatch(self, request: Request, call_next):
+        header_rid = (request.headers.get("x-request-id") or "").strip()
+        rid = header_rid or uuid.uuid4().hex[:16]
+        request.state.request_id = rid
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = rid
+        return response
 
 
 @asynccontextmanager
@@ -53,14 +77,31 @@ def _validation_errors_fr(errors: list) -> str:
 
 @fastapi_app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(
-    request, exc: RequestValidationError
+    request: Request, exc: RequestValidationError
 ):
+    detail_fr = _validation_errors_fr(exc.errors())
+    path = request.url.path
+    if path in ("/api/players/register", "/api/players/login"):
+        vkind = "register" if path.endswith("/register") else "login"
+        await audit_service.record_auth_audit(
+            request_id=request_id_for(request),
+            kind=vkind,
+            success=False,
+            reason_code="validation_error",
+            public_message=detail_fr,
+            http_status=422,
+            client_ip=client_ip(request),
+            user_agent=(request.headers.get("user-agent") or "")[:400],
+            email_raw=None,
+            internal_detail=str(exc.errors())[:800],
+        )
     return JSONResponse(
         status_code=422,
-        content={"detail": _validation_errors_fr(exc.errors())},
+        content={"detail": detail_fr},
     )
 
 
+fastapi_app.add_middleware(RequestIDMiddleware)
 fastapi_app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

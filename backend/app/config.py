@@ -1,5 +1,6 @@
 import os
 import socket
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -15,6 +16,9 @@ class Settings(BaseSettings):
     media_dir: str = "/app/media"
     redis_url: str = "redis://localhost:6379/0"
     database_url: str = "postgresql://topquizz:topquizz@postgres:5432/topquizz"
+    # Jeton optionnel : header X-TopQuizz-Admin-Token pour accéder aux routes /admin
+    # depuis une IP non locale (ex. téléphone hors Wi-Fi du labo).
+    admin_token: str = Field(default="", validation_alias="TOPQUIZZ_ADMIN_TOKEN")
 
     @property
     def local_ip(self) -> str:

@@ -4,11 +4,16 @@ Redis reste dédié aux sessions de jeu temps réel.
 """
 from __future__ import annotations
 
+import hashlib
+import logging
 import time
 import uuid
 from passlib.context import CryptContext
 
+from app.models.player_auth_result import PlayerAuthResult
 from app.services.db_store import get_pool
+
+logger = logging.getLogger("topquizz.player_accounts")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 TOKEN_TTL_SEC = 30 * 24 * 3600  # 30 jours
@@ -19,11 +24,18 @@ def _norm_email(email: str) -> str:
     return email.strip().lower()
 
 
+def _password_secret_for_bcrypt(password: str) -> str:
+    """SHA-256 hex (64 octets ASCII) pour contourner la limite bcrypt à 72 octets du mot de passe brut."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_password_secret_for_bcrypt(password))
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    if pwd_context.verify(_password_secret_for_bcrypt(password), password_hash):
+        return True
     return pwd_context.verify(password, password_hash)
 
 
@@ -42,21 +54,25 @@ def public_user(row: dict) -> dict:
 
 async def register_user(
     email: str, password: str, display_name: str
-) -> tuple[str, dict] | tuple[None, str]:
+) -> PlayerAuthResult:
     try:
         pool = await get_pool()
     except Exception as e:
-        print(f"[player_accounts] DB unavailable: {e}")
-        return None, "db_unavailable"
+        logger.warning("register: DB unavailable: %s", e)
+        return PlayerAuthResult(
+            ok=False,
+            error_code="db_unavailable",
+            audit_detail=str(e)[:400],
+        )
 
     email_n = _norm_email(email)
     if not email_n or "@" not in email_n:
-        return None, "invalid_email"
+        return PlayerAuthResult(ok=False, error_code="invalid_email")
     if len(password) < 6:
-        return None, "password_too_short"
+        return PlayerAuthResult(ok=False, error_code="password_too_short")
     name = display_name.strip()
     if len(name) < 2:
-        return None, "name_too_short"
+        return PlayerAuthResult(ok=False, error_code="name_too_short")
 
     try:
         async with pool.acquire() as conn:
@@ -64,7 +80,7 @@ async def register_user(
                 "SELECT id FROM users WHERE email = $1", email_n
             )
             if existing:
-                return None, "email_taken"
+                return PlayerAuthResult(ok=False, error_code="email_taken")
 
             uid = uuid.uuid4().hex
             now = int(time.time())
@@ -95,21 +111,31 @@ async def register_user(
             "wins": 0,
             "created_at": now,
         }
-        return token, public_user(user)
+        return PlayerAuthResult(ok=True, token=token, user=public_user(user))
 
     except Exception as e:
-        print(f"[player_accounts] register error: {e}")
-        return None, "db_error"
+        sqlstate = getattr(e, "sqlstate", None)
+        detail = f"{type(e).__name__}|sqlstate={sqlstate!r}|{str(e)[:280]}"
+        logger.warning("register DB error: %s", detail)
+        if sqlstate == "23505":
+            return PlayerAuthResult(
+                ok=False, error_code="email_taken", audit_detail=detail
+            )
+        return PlayerAuthResult(
+            ok=False, error_code="db_error", audit_detail=detail
+        )
 
 
-async def login_user(
-    email: str, password: str
-) -> tuple[str, dict] | tuple[None, str]:
+async def login_user(email: str, password: str) -> PlayerAuthResult:
     try:
         pool = await get_pool()
     except Exception as e:
-        print(f"[player_accounts] DB unavailable: {e}")
-        return None, "db_unavailable"
+        logger.warning("login: DB unavailable: %s", e)
+        return PlayerAuthResult(
+            ok=False,
+            error_code="db_unavailable",
+            audit_detail=str(e)[:400],
+        )
 
     email_n = _norm_email(email)
     try:
@@ -118,10 +144,19 @@ async def login_user(
                 "SELECT * FROM users WHERE email = $1", email_n
             )
             if not row:
-                return None, "invalid_credentials"
+                return PlayerAuthResult(ok=False, error_code="invalid_credentials")
 
-            if not verify_password(password, row["password_hash"]):
-                return None, "invalid_credentials"
+            stored_hash = row["password_hash"]
+            if pwd_context.verify(_password_secret_for_bcrypt(password), stored_hash):
+                pass
+            elif pwd_context.verify(password, stored_hash):
+                await conn.execute(
+                    "UPDATE users SET password_hash = $1 WHERE id = $2",
+                    hash_password(password),
+                    row["id"],
+                )
+            else:
+                return PlayerAuthResult(ok=False, error_code="invalid_credentials")
 
             token = uuid.uuid4().hex
             now = int(time.time())
@@ -131,11 +166,14 @@ async def login_user(
                 token, row["id"], expires_at,
             )
 
-        return token, public_user(dict(row))
+        return PlayerAuthResult(ok=True, token=token, user=public_user(dict(row)))
 
     except Exception as e:
-        print(f"[player_accounts] login error: {e}")
-        return None, "db_error"
+        detail = f"{type(e).__name__}|{str(e)[:320]}"
+        logger.warning("login DB error: %s", detail)
+        return PlayerAuthResult(
+            ok=False, error_code="db_error", audit_detail=detail
+        )
 
 
 async def resolve_auth_token(token: str) -> str | None:

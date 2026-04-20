@@ -68,10 +68,26 @@ def test_hash_and_verify_password():
         assert hashed != pw
         assert verify_password(pw, hashed) is True
         assert verify_password("wrong", hashed) is False
+        long_pw = "x" * 400 + "🎮"
+        h2 = hash_password(long_pw)
+        assert verify_password(long_pw, h2) is True
+        assert verify_password(long_pw + "!", h2) is False
     except Exception as e:
         # bcrypt version mismatch in local env — skip, runs correctly in Docker
         import pytest
         pytest.skip(f"bcrypt not available locally: {e}")
+
+
+def test_verify_password_legacy_plain_bcrypt_hash():
+    """Anciens comptes : hash bcrypt du mot de passe brut (sans SHA-256)."""
+    from passlib.context import CryptContext
+    from app.services.player_accounts import verify_password
+
+    ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    raw = "legacySecret9"
+    legacy_hash = ctx.hash(raw)
+    assert verify_password(raw, legacy_hash) is True
+    assert verify_password("nope", legacy_hash) is False
 
 
 def test_verify_password_wrong():
@@ -113,9 +129,9 @@ async def test_register_invalid_email():
     from app.services.player_accounts import register_user
     pool, _ = _make_pool_mock()
     with patch("app.services.player_accounts.get_pool", return_value=pool):
-        token, result = await register_user("not_an_email", "password123", "TestUser")
-        assert token is None
-        assert result == "invalid_email"
+        out = await register_user("not_an_email", "password123", "TestUser")
+        assert not out.ok
+        assert out.error_code == "invalid_email"
 
 
 @pytest.mark.asyncio
@@ -123,9 +139,9 @@ async def test_register_password_too_short():
     from app.services.player_accounts import register_user
     pool, _ = _make_pool_mock()
     with patch("app.services.player_accounts.get_pool", return_value=pool):
-        token, result = await register_user("test@test.com", "12345", "TestUser")
-        assert token is None
-        assert result == "password_too_short"
+        out = await register_user("test@test.com", "12345", "TestUser")
+        assert not out.ok
+        assert out.error_code == "password_too_short"
 
 
 @pytest.mark.asyncio
@@ -133,20 +149,31 @@ async def test_register_name_too_short():
     from app.services.player_accounts import register_user
     pool, _ = _make_pool_mock()
     with patch("app.services.player_accounts.get_pool", return_value=pool):
-        token, result = await register_user("test@test.com", "password123", "A")
-        assert token is None
-        assert result == "name_too_short"
+        out = await register_user("test@test.com", "password123", "A")
+        assert not out.ok
+        assert out.error_code == "name_too_short"
+
+
+@pytest.mark.asyncio
+async def test_register_accepts_long_password_beyond_bcrypt_72_bytes():
+    """SHA-256 avant bcrypt : phrases longues et émojis ne sont plus bloqués."""
+    from app.services.player_accounts import register_user
+    pool, _ = _make_pool_mock()
+    pw = "a" * 500 + "🔐" * 30
+    with patch("app.services.player_accounts.get_pool", return_value=pool):
+        out = await register_user("test@test.com", pw, "TestUser")
+        assert out.ok
+        assert out.token
 
 
 @pytest.mark.asyncio
 async def test_register_db_unavailable():
     from app.services.player_accounts import register_user
-    async def fail():
-        raise Exception("DB connection refused")
     with patch("app.services.player_accounts.get_pool", side_effect=Exception("DB down")):
-        token, result = await register_user("test@test.com", "password123", "TestUser")
-        assert token is None
-        assert result == "db_unavailable"
+        out = await register_user("test@test.com", "password123", "TestUser")
+        assert not out.ok
+        assert out.error_code == "db_unavailable"
+        assert out.audit_detail
 
 
 # ---------------------------------------------------------------------------

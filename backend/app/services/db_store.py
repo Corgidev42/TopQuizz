@@ -80,4 +80,26 @@ async def _init_schema(pool: asyncpg.Pool):
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_history_user_id ON game_history(user_id)
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_audit_events (
+                id BIGSERIAL PRIMARY KEY,
+                created_at BIGINT NOT NULL,
+                request_id TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL,
+                success BOOLEAN NOT NULL,
+                reason_code TEXT,
+                public_message TEXT,
+                http_status INTEGER NOT NULL DEFAULT 0,
+                client_ip TEXT NOT NULL DEFAULT '',
+                user_agent TEXT NOT NULL DEFAULT '',
+                email_hint TEXT,
+                internal_detail TEXT
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_auth_audit_created ON auth_audit_events(created_at DESC)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_auth_audit_kind_success ON auth_audit_events(kind, success)
+        """)
     print("[DB] PostgreSQL schema ready")
