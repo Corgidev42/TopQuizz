@@ -1,8 +1,23 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: topquizz
+      POSTGRES_PASSWORD: topquizz
+      POSTGRES_DB: topquizz
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - topquizz
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U topquizz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     networks:
       - topquizz
     restart: unless-stopped
@@ -16,6 +31,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://topquizz:topquizz@postgres:5432/topquizz
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -24,7 +40,10 @@ services:
     networks:
       - topquizz
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: unless-stopped
 
   frontend:
@@ -59,3 +78,6 @@ services:
 networks:
   topquizz:
     driver: bridge
+
+volumes:
+  postgres_data:

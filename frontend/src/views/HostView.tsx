@@ -151,6 +151,8 @@ export default function HostView() {
           <p className="text-neutral-400 mb-6">
             {gameState.current_module === "dilemme_parfait"
               ? `${gameState.dilemme?.total_rounds ?? 0} manches`
+              : gameState.current_module === "ttmc"
+              ? `${gameState.ttmc?.total_rounds ?? 0} rounds`
               : `${gameState.total_questions} questions`}
             {" — Module "}
             {gameState.current_module_index + 1}/{gameState.total_modules}
@@ -164,6 +166,15 @@ export default function HostView() {
             >
               Lancer le premier dilemme ▶️
             </button>
+          ) : gameState.current_module === "ttmc" ? (
+            <button
+              onClick={() =>
+                emit("host_next_ttmc_round", { game_id: gameState.id })
+              }
+              className="btn-primary text-xl px-8"
+            >
+              Lancer le premier round TTMC ▶️
+            </button>
           ) : (
             <button
               onClick={() =>
@@ -172,6 +183,104 @@ export default function HostView() {
               className="btn-primary text-xl px-8"
             >
               Lancer la première question ▶️
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* TTMC — PICKING phase */}
+      {phase === "ttmc_picking" && gameState.ttmc && (
+        <div className="card text-center space-y-4">
+          <div className="text-5xl">🎯</div>
+          <h2 className="text-2xl font-black">Tu te mets combien ?</h2>
+          <p className="text-brand-orange font-bold text-lg">{gameState.ttmc.theme}</p>
+          <p className="text-neutral-400">
+            Round {gameState.ttmc.round_index + 1}/{gameState.ttmc.total_rounds}
+          </p>
+          <div className="text-4xl font-black">
+            {gameState.ttmc.picks_count}
+            <span className="text-neutral-500 text-2xl">
+              /{Object.keys(gameState.players).length}
+            </span>
+          </div>
+          <p className="text-neutral-500 text-sm">joueur(s) ont choisi leur niveau</p>
+          <button
+            onClick={() => emit("host_force_ttmc_reveal", { game_id: gameState.id })}
+            disabled={gameState.ttmc.picks_count === 0}
+            className="btn-secondary"
+          >
+            Forcer la révélation des questions
+          </button>
+        </div>
+      )}
+
+      {/* TTMC — ANSWERING phase */}
+      {phase === "ttmc_answering" && gameState.ttmc && (
+        <div className="card text-center space-y-4">
+          <div className="text-5xl">⏳</div>
+          <h2 className="text-2xl font-black">Les joueurs répondent</h2>
+          <p className="text-neutral-400 text-sm">Chaque joueur a sa propre question</p>
+          <div className="text-4xl font-black">
+            {gameState.ttmc.answers_count}
+            <span className="text-neutral-500 text-2xl">
+              /{Object.keys(gameState.players).length}
+            </span>
+          </div>
+          <p className="text-neutral-500 text-sm">réponse(s) reçue(s)</p>
+          <button
+            onClick={() => emit("host_force_ttmc_results", { game_id: gameState.id })}
+            className="btn-secondary"
+          >
+            Afficher les résultats maintenant
+          </button>
+        </div>
+      )}
+
+      {/* TTMC — RESULT phase */}
+      {phase === "ttmc_result" && gameState.ttmc && (
+        <div className="space-y-4">
+          <div className="card space-y-3">
+            <h2 className="text-xl font-black text-center">Résultats du round</h2>
+            <p className="text-neutral-400 text-sm text-center">{gameState.ttmc.theme}</p>
+            {(gameState.ttmc.results ?? []).map((r) => (
+              <div
+                key={r.sid}
+                className={`flex items-center justify-between px-4 py-3 rounded-xl ${
+                  r.is_correct ? "bg-green-500/10 border border-green-500/30" : "bg-red-500/10 border border-red-500/20"
+                }`}
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="text-lg">{r.is_correct ? "✅" : "❌"}</span>
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+                  <div className="min-w-0">
+                    <p className="font-bold truncate">{r.pseudo} <span className="text-neutral-500 font-normal text-xs">niv.{r.level}</span></p>
+                    <p className="text-xs text-neutral-500 truncate">
+                      {r.answer || "—"}{!r.is_correct && r.correct_answer ? ` → ${r.correct_answer}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-brand-orange font-bold ml-2">+{r.points}pts</span>
+              </div>
+            ))}
+          </div>
+          {gameState.ttmc.round_index + 1 < gameState.ttmc.total_rounds ? (
+            <button
+              onClick={() => emit("host_next_ttmc_round", { game_id: gameState.id })}
+              className="btn-primary w-full text-lg"
+            >
+              Round suivant ▶️
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setLoadingNextModule(true);
+                emit("host_next_module", { game_id: gameState.id });
+                setTimeout(() => setLoadingNextModule(false), 8000);
+              }}
+              disabled={loadingNextModule}
+              className="btn-primary w-full text-lg"
+            >
+              {loadingNextModule ? "Chargement..." : hasNextModule ? "Module suivant ▶️" : "Résultats finaux ▶️"}
             </button>
           )}
         </div>

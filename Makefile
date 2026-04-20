@@ -6,6 +6,8 @@
 BLUE = \033[36m
 RESET = \033[0m
 
+.DEFAULT_GOAL := all
+
 help:
 	@echo "$(BLUE)TopQuizz Commands:$(RESET)"
 	@echo "  make up              - Start the application in detached mode"
@@ -17,6 +19,8 @@ help:
 	@echo "  make shell-backend   - Open a shell in the backend container"
 	@echo "  make shell-frontend  - Open a shell in the frontend container"
 	@echo "  make clean           - Remove unused Docker images and volumes"
+
+all: build up
 
 cert:
 	bash nginx/generate-cert.sh $$(ipconfig getifaddr en0)

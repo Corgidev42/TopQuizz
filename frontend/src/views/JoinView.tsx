@@ -124,9 +124,15 @@ export default function JoinView() {
         try {
           data = text ? (JSON.parse(text) as typeof data) : {};
         } catch {
-          setAuthError(
-            errorMessageFromBody(res, text, "Connexion impossible"),
-          );
+          if (/<html|DOCTYPE/i.test(text)) {
+            setAuthError(
+              "Réponse HTML au lieu de l’API — backend ou Redis probablement arrêté.",
+            );
+          } else {
+            setAuthError(
+              errorMessageFromBody(res, text, "Connexion impossible"),
+            );
+          }
           return;
         }
         if (!res.ok) {
@@ -140,6 +146,12 @@ export default function JoinView() {
           return;
         }
         setAuth(data.token, data.user);
+      } catch (err) {
+        setAuthError(
+          err instanceof TypeError
+            ? "Réseau ou certificat : Wi‑Fi, HTTPS, et accepte le certificat sur cette page."
+            : "Connexion au serveur impossible.",
+        );
       } finally {
         setAuthLoading(false);
       }
@@ -164,9 +176,15 @@ export default function JoinView() {
         try {
           data = text ? (JSON.parse(text) as typeof data) : {};
         } catch {
-          setAuthError(
-            errorMessageFromBody(res, text, "Erreur d'inscription"),
-          );
+          if (/<html|DOCTYPE/i.test(text)) {
+            setAuthError(
+              "Réponse HTML au lieu de l’API — backend ou Redis probablement arrêté.",
+            );
+          } else {
+            setAuthError(
+              errorMessageFromBody(res, text, "Erreur d'inscription"),
+            );
+          }
           return;
         }
         if (!res.ok) {
@@ -180,6 +198,12 @@ export default function JoinView() {
           return;
         }
         setAuth(data.token, data.user);
+      } catch (err) {
+        setAuthError(
+          err instanceof TypeError
+            ? "Réseau ou certificat : Wi‑Fi, HTTPS, et accepte le certificat sur cette page."
+            : "Connexion au serveur impossible.",
+        );
       } finally {
         setAuthLoading(false);
       }

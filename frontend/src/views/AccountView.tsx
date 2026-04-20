@@ -102,7 +102,13 @@ export default function AccountView() {
       try {
         data = text ? (JSON.parse(text) as typeof data) : {};
       } catch {
-        setError(errorMessageFromBody(res, text, "Erreur d'inscription"));
+        if (/<html|DOCTYPE/i.test(text)) {
+          setError(
+            "Réponse HTML au lieu de l’API — backend ou Redis probablement arrêté.",
+          );
+        } else {
+          setError(errorMessageFromBody(res, text, "Erreur d'inscription"));
+        }
         return;
       }
       if (!res.ok) {
@@ -114,6 +120,12 @@ export default function AccountView() {
         return;
       }
       setAuth(data.token, data.user);
+    } catch (err) {
+      setError(
+        err instanceof TypeError
+          ? "Réseau ou certificat : ouvre le site en HTTPS et accepte le certificat."
+          : "Connexion au serveur impossible.",
+      );
     } finally {
       setLoading(false);
     }
@@ -134,7 +146,13 @@ export default function AccountView() {
       try {
         data = text ? (JSON.parse(text) as typeof data) : {};
       } catch {
-        setError(errorMessageFromBody(res, text, "Connexion impossible"));
+        if (/<html|DOCTYPE/i.test(text)) {
+          setError(
+            "Réponse HTML au lieu de l’API — backend ou Redis probablement arrêté.",
+          );
+        } else {
+          setError(errorMessageFromBody(res, text, "Connexion impossible"));
+        }
         return;
       }
       if (!res.ok) {
@@ -146,6 +164,12 @@ export default function AccountView() {
         return;
       }
       setAuth(data.token, data.user);
+    } catch (err) {
+      setError(
+        err instanceof TypeError
+          ? "Réseau ou certificat : ouvre le site en HTTPS et accepte le certificat."
+          : "Connexion au serveur impossible.",
+      );
     } finally {
       setLoading(false);
     }

@@ -11,7 +11,10 @@ export type GamePhase =
   | "final_results"
   | "dilemme_submit"
   | "dilemme_vote"
-  | "dilemme_vote_result";
+  | "dilemme_vote_result"
+  | "ttmc_picking"
+  | "ttmc_answering"
+  | "ttmc_result";
 
 export type ModuleType =
   | "master_quiz"
@@ -19,7 +22,8 @@ export type ModuleType =
   | "master_face"
   | "master_commu"
   | "blind_test"
-  | "dilemme_parfait";
+  | "dilemme_parfait"
+  | "ttmc";
 
 export type Difficulty = "easy" | "medium" | "hard" | "expert";
 
@@ -82,6 +86,29 @@ export interface DilemmeState {
   total_rounds: number;
 }
 
+export interface TTMCPlayerResult {
+  sid: string;
+  pseudo: string;
+  color: string;
+  avatar_emoji?: string | null;
+  level: number;
+  question_text: string;
+  correct_answer: string;
+  answer: string | null;
+  is_correct: boolean;
+  points: number;
+  score: number;
+}
+
+export interface TTMCState {
+  theme: string | null;
+  round_index: number;
+  total_rounds: number;
+  picks_count: number;
+  answers_count: number;
+  results?: TTMCPlayerResult[];
+}
+
 export interface GameState {
   id: string;
   phase: GamePhase;
@@ -105,6 +132,7 @@ export interface GameState {
   } | null;
   tiebreaker_scores: Record<string, number>;
   dilemme?: DilemmeState;
+  ttmc?: TTMCState;
 }
 
 export interface ModuleConfig {
@@ -128,6 +156,7 @@ export const MODULE_LABELS: Record<ModuleType, string> = {
   master_commu: "TopCommu",
   blind_test: "TopBlindtest",
   dilemme_parfait: "TopDilemme",
+  ttmc: "Tu te mets combien ?",
 };
 
 export const MODULE_ICONS: Record<ModuleType, string> = {
@@ -137,6 +166,7 @@ export const MODULE_ICONS: Record<ModuleType, string> = {
   master_commu: "👥",
   blind_test: "🎵",
   dilemme_parfait: "⚖️",
+  ttmc: "🎯",
 };
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {

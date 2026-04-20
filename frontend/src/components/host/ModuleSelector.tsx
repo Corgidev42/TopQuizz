@@ -8,6 +8,7 @@ const ALL_MODULES: ModuleType[] = [
   "master_commu",
   "blind_test",
   "dilemme_parfait",
+  "ttmc",
 ];
 
 const ALL_DILEMME_MODES: DilemmeSubMode[] = [
@@ -80,7 +81,8 @@ export default function ModuleSelector({ modules, onChange }: Props) {
 
           {(mod.module_type === "master_quiz" ||
             mod.module_type === "master_commu" ||
-            mod.module_type === "blind_test") && (
+            mod.module_type === "blind_test" ||
+            mod.module_type === "ttmc") && (
             <input
               type="text"
               value={mod.theme ?? ""}
@@ -90,16 +92,24 @@ export default function ModuleSelector({ modules, onChange }: Props) {
                   ? "Thème (ex: nourriture, sport, vacances...)"
                   : mod.module_type === "blind_test"
                     ? "Thème (ex: anime, hits 2000, rap FR...)"
-                    : "Thème (ex: Pop Culture, Science...)"
+                    : mod.module_type === "ttmc"
+                      ? "Thème global (ex: Culture Générale, Sport, Cinéma...)"
+                      : "Thème (ex: Pop Culture, Science...)"
               }
               className="input-field"
             />
           )}
 
+          {mod.module_type === "ttmc" && (
+            <p className="text-xs text-neutral-500 italic">
+              En TTMC, chaque round génère 10 questions (niveaux 1 à 10). Le nombre de rounds définit combien de thèmes seront joués.
+            </p>
+          )}
+
           {mod.module_type !== "master_memory" && (
             <div className="flex items-center gap-3">
               <label className="text-sm text-neutral-400 whitespace-nowrap">
-                {mod.module_type === "dilemme_parfait" ? "Manches :" : "Questions :"}
+                {mod.module_type === "dilemme_parfait" ? "Manches :" : mod.module_type === "ttmc" ? "Rounds :" : "Questions :"}
               </label>
               <input
                 type="number"
@@ -116,7 +126,7 @@ export default function ModuleSelector({ modules, onChange }: Props) {
             </div>
           )}
 
-          {mod.module_type !== "master_memory" && mod.module_type !== "dilemme_parfait" && (
+          {mod.module_type !== "master_memory" && mod.module_type !== "dilemme_parfait" && mod.module_type !== "ttmc" && (
             <div>
               <label className="text-sm text-neutral-400 mb-1 block">
                 Difficultés :

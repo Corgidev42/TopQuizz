@@ -90,6 +90,8 @@ export default function TVView() {
   if (phase === "module_intro") {
     const mod = gameState.current_module;
     const isDilemme = mod === "dilemme_parfait";
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _isTTMC = mod === "ttmc";
     return (
       <div className="min-h-screen flex flex-col items-center justify-center animate-bounce-in">
         <div className="text-8xl mb-6">{mod ? MODULE_ICONS[mod] : "🎮"}</div>
@@ -99,7 +101,7 @@ export default function TVView() {
         <p className="text-neutral-400 text-2xl mt-4">
           {gameState.current_module_index + 1} / {gameState.total_modules}
         </p>
-        {!isDilemme && (
+        {!isDilemme && mod !== "ttmc" && (
           <p className="text-neutral-500 mt-2">
             {gameState.total_questions} questions
           </p>
@@ -107,6 +109,11 @@ export default function TVView() {
         {isDilemme && gameState.dilemme && (
           <p className="text-neutral-500 mt-2">
             {gameState.dilemme.total_rounds} manches
+          </p>
+        )}
+        {mod === "ttmc" && gameState.ttmc && (
+          <p className="text-neutral-500 mt-2">
+            {gameState.ttmc.total_rounds} rounds
           </p>
         )}
       </div>
@@ -170,6 +177,107 @@ export default function TVView() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // TTMC PHASES
+  if (phase === "ttmc_picking" && gameState.ttmc) {
+    const ttmc = gameState.ttmc;
+    const totalPlayers = Object.values(gameState.players).filter((p) => p.is_connected).length;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8 animate-bounce-in">
+        <div className="text-8xl mb-6">🎯</div>
+        <h1 className="text-5xl font-black mb-3">Tu te mets combien ?</h1>
+        {ttmc.theme && (
+          <p className="text-brand-orange text-3xl font-bold mb-8 text-center">{ttmc.theme}</p>
+        )}
+        <p className="text-neutral-400 text-2xl mb-4">
+          Round {ttmc.round_index + 1}/{ttmc.total_rounds}
+        </p>
+        <div className="text-8xl font-black text-brand-orange mt-4">
+          {ttmc.picks_count}
+          <span className="text-neutral-500 text-5xl">/{totalPlayers}</span>
+        </div>
+        <p className="text-neutral-400 text-xl mt-4">joueur(s) ont choisi</p>
+      </div>
+    );
+  }
+
+  if (phase === "ttmc_answering" && gameState.ttmc) {
+    const ttmc = gameState.ttmc;
+    const totalPlayers = Object.values(gameState.players).filter((p) => p.is_connected).length;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8">
+        <div className="text-7xl mb-6 animate-pulse-slow">⏳</div>
+        <h1 className="text-4xl font-black mb-2">Chaque joueur répond</h1>
+        <p className="text-neutral-400 text-xl mb-8">{ttmc.theme}</p>
+        <div className="text-8xl font-black text-brand-orange">
+          {ttmc.answers_count}
+          <span className="text-neutral-500 text-5xl">/{totalPlayers}</span>
+        </div>
+        <p className="text-neutral-400 text-xl mt-4">réponse(s) reçue(s)</p>
+        <div className="mt-8 flex flex-wrap gap-3 justify-center">
+          {gameState.scores.map((s) => (
+            <div key={s.sid} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${
+              ttmc.answers_count > 0 && Object.values(gameState.players).find(p => p === gameState.players[s.sid])
+                ? "border border-green-500/30 bg-green-500/10"
+                : "border border-neutral-700 bg-surface-light"
+            }`}>
+              {s.avatar_emoji && <span className="text-lg">{s.avatar_emoji}</span>}
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s.color }} />
+              <span className="font-semibold">{s.pseudo}</span>
+              <span className="text-brand-orange">{s.score}pts</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "ttmc_result" && gameState.ttmc) {
+    const ttmc = gameState.ttmc;
+    const results = ttmc.results ?? [];
+    return (
+      <div className="min-h-screen flex flex-col items-center p-8">
+        <h1 className="text-4xl font-black mb-2 mt-4">Résultats du round</h1>
+        <p className="text-brand-orange text-xl mb-8">{ttmc.theme}</p>
+        <div className="w-full max-w-3xl space-y-4">
+          {results.map((r) => (
+            <div
+              key={r.sid}
+              className={`flex items-start gap-4 p-4 rounded-2xl border ${
+                r.is_correct ? "border-green-500/40 bg-green-500/10" : "border-red-500/30 bg-red-500/5"
+              }`}
+            >
+              <span className="text-3xl">{r.is_correct ? "✅" : "❌"}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: r.color }} />
+                  <span className="font-black text-lg">{r.pseudo}</span>
+                  <span className="text-neutral-500 text-sm">niveau {r.level}/10</span>
+                </div>
+                <p className="text-neutral-300 text-sm mb-1">{r.question_text}</p>
+                <p className="text-sm">
+                  <span className="text-neutral-500">Réponse : </span>
+                  <span className={r.is_correct ? "text-green-400 font-bold" : "text-red-400"}>
+                    {r.answer || "—"}
+                  </span>
+                  {!r.is_correct && r.correct_answer && (
+                    <span className="text-neutral-400"> → <span className="text-white">{r.correct_answer}</span></span>
+                  )}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-brand-orange font-black text-2xl">+{r.points}pts</div>
+                <div className="text-neutral-400 text-sm">{r.score} total</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 w-full max-w-3xl">
+          <Scoreboard scores={gameState.scores} />
         </div>
       </div>
     );

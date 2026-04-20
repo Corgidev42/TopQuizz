@@ -201,6 +201,20 @@ class AIRouter:
             return await self.ollama.generate_quiz_questions(*args, **kwargs)
         return await self.gemini.generate_quiz_questions(*args, **kwargs)
 
+    async def generate_ttmc_questions(self, theme: str) -> list[dict]:
+        # Always Gemini for TTMC (Ollama fallback uses quiz questions per level)
+        if self.provider == "ollama":
+            results = []
+            for level in range(1, 11):
+                from app.models.enums import TTMC_LEVEL_DIFFICULTY, Difficulty
+                diff = TTMC_LEVEL_DIFFICULTY.get(level, Difficulty.MEDIUM)
+                qs = await self.ollama.generate_quiz_questions(theme, 1, [diff])
+                if qs:
+                    qs[0]["level"] = level
+                    results.append(qs[0])
+            return results
+        return await self.gemini.generate_ttmc_questions(theme)
+
     async def generate_commu_questions(self, *args, **kwargs):
         if self.provider == "ollama":
             return await self.ollama.generate_commu_questions(*args, **kwargs)

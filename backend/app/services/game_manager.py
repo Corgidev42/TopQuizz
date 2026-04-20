@@ -8,6 +8,7 @@ from app.models.enums import (
     Difficulty,
     DilemmeSubMode,
     MODULE_LABELS,
+    TTMC_LEVEL_POINTS,
 )
 from app.models.player import Player, PLAYER_COLORS
 from app.models.question import Question, ModuleConfig, GamePreset
@@ -59,6 +60,14 @@ class GameSession:
 
         # Stats persistantes (comptes joueurs) — une seule fois par partie
         self.stats_recorded: bool = False
+
+        # TTMC state
+        self.ttmc_rounds: list[dict] = []       # [{theme, questions: [Question]}]
+        self.ttmc_round_index: int = -1
+        self.ttmc_theme: str | None = None
+        self.ttmc_picks: dict[str, int] = {}    # sid → level 1-10
+        self.ttmc_player_questions: dict[str, dict] = {}  # sid → question dict
+        self.ttmc_answers: dict[str, dict] = {}  # sid → {answer, is_correct, points, ...}
 
     def add_player(
         self,
@@ -161,7 +170,15 @@ class GameSession:
         tied = [s["sid"] for s in scores if s["score"] == top_score]
         return tied if len(tied) > 1 else []
 
-    def question_for_clients(self) -> dict | None:
+    # Phases where the correct answer can be revealed to all clients.
+    _REVEAL_PHASES = {
+        GamePhase.QUESTION_RESULT,
+        GamePhase.MODULE_RESULT,
+        GamePhase.FINAL_RESULTS,
+        GamePhase.TIEBREAKER,
+    }
+
+    def question_for_clients(self, reveal: bool = False) -> dict | None:
         if not self.current_question:
             return None
         q = self.current_question
@@ -171,8 +188,10 @@ class GameSession:
             "module_type": q.module_type.value,
             "difficulty": q.difficulty.value,
             "points": q.points,
-            "correct_answer": q.correct_answer,
         }
+        # Only include correct_answer once the question is resolved (anti-cheat).
+        if reveal or self.phase in self._REVEAL_PHASES:
+            data["correct_answer"] = q.correct_answer
         if q.options:
             data["options"] = q.options
         if q.image_url:
@@ -234,6 +253,38 @@ class GameSession:
                 "total_rounds": len(self.dilemme_rounds),
             }
 
+        if self.phase in (GamePhase.TTMC_PICKING, GamePhase.TTMC_ANSWERING,
+                          GamePhase.TTMC_RESULT, GamePhase.MODULE_INTRO) and self.ttmc_rounds:
+            ttmc_data: dict = {
+                "theme": self.ttmc_theme,
+                "round_index": self.ttmc_round_index,
+                "total_rounds": len(self.ttmc_rounds),
+                "picks_count": len(self.ttmc_picks),
+                "answers_count": len(self.ttmc_answers),
+            }
+            if self.phase == GamePhase.TTMC_RESULT:
+                # Reveal all results: questions, answers, scores per player
+                results = []
+                for sid, p in self.players.items():
+                    q = self.ttmc_player_questions.get(sid)
+                    ans = self.ttmc_answers.get(sid)
+                    pick = self.ttmc_picks.get(sid, 0)
+                    results.append({
+                        "sid": sid,
+                        "pseudo": p.pseudo,
+                        "color": p.color,
+                        "avatar_emoji": p.avatar_emoji,
+                        "level": pick,
+                        "question_text": q.get("text", "") if q else "",
+                        "correct_answer": q.get("correct_answer", "") if q else "",
+                        "answer": ans.get("answer", "") if ans else None,
+                        "is_correct": ans.get("is_correct", False) if ans else False,
+                        "points": ans.get("points", 0) if ans else 0,
+                        "score": p.score,
+                    })
+                ttmc_data["results"] = results
+            data["ttmc"] = ttmc_data
+
         return data
 
     def to_json(self) -> dict:
@@ -272,6 +323,16 @@ class GameSession:
             "dilemme_round_index": self.dilemme_round_index,
             "dilemme_rounds": self.dilemme_rounds,
             "stats_recorded": self.stats_recorded,
+            # TTMC
+            "ttmc_rounds": [
+                {"theme": r["theme"], "questions": [q.model_dump() for q in r["questions"]]}
+                for r in self.ttmc_rounds
+            ],
+            "ttmc_round_index": self.ttmc_round_index,
+            "ttmc_theme": self.ttmc_theme,
+            "ttmc_picks": self.ttmc_picks,
+            "ttmc_player_questions": self.ttmc_player_questions,
+            "ttmc_answers": self.ttmc_answers,
         }
 
     @classmethod
@@ -312,6 +373,17 @@ class GameSession:
         session.dilemme_round_index = data.get("dilemme_round_index", -1)
         session.dilemme_rounds = data.get("dilemme_rounds", [])
         session.stats_recorded = data.get("stats_recorded", False)
+        # TTMC
+        raw_ttmc_rounds = data.get("ttmc_rounds", [])
+        session.ttmc_rounds = [
+            {"theme": r["theme"], "questions": [Question(**q) for q in r["questions"]]}
+            for r in raw_ttmc_rounds
+        ]
+        session.ttmc_round_index = data.get("ttmc_round_index", -1)
+        session.ttmc_theme = data.get("ttmc_theme")
+        session.ttmc_picks = data.get("ttmc_picks", {})
+        session.ttmc_player_questions = data.get("ttmc_player_questions", {})
+        session.ttmc_answers = data.get("ttmc_answers", {})
         return session
 
 
@@ -376,6 +448,17 @@ DEFAULT_PRESETS: list[GamePreset] = [
                     DilemmeSubMode.POURRIEZ_VOUS,
                     DilemmeSubMode.LIBRE,
                 ],
+            ),
+        ],
+    ),
+    GamePreset(
+        name="TTMC — Tu te mets combien ?",
+        description="Chaque joueur choisit secrètement son niveau 1-10 avant de répondre",
+        modules=[
+            ModuleConfig(
+                module_type=ModuleType.TTMC,
+                num_questions=5,
+                theme="Culture Générale",
             ),
         ],
     ),

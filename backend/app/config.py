@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     port: int = 8000
     media_dir: str = "/app/media"
     redis_url: str = "redis://localhost:6379/0"
+    database_url: str = "postgresql://topquizz:topquizz@postgres:5432/topquizz"
 
     @property
     def local_ip(self) -> str:

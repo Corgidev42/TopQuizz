@@ -5,6 +5,7 @@ import { MODULE_LABELS, MODULE_ICONS } from "../../types";
 import ModuleSelector from "./ModuleSelector";
 import { QRCodeSVG } from "qrcode.react";
 import { useGameStore } from "../../stores/gameStore";
+import { apiUrl } from "../../utils/apiBase";
 
 interface Props {
   gameId: string;
@@ -63,7 +64,7 @@ export default function GameSetup({
   const loadOllamaModels = async () => {
     setLoadingModels(true);
     try {
-      const resp = await fetch("/api/ai/ollama/models");
+      const resp = await fetch(apiUrl("/api/ai/ollama/models"));
       const data = await resp.json();
       const models: string[] = Array.isArray(data?.models) ? data.models : [];
       setOllamaModels(models);

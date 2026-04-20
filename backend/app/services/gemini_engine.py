@@ -173,6 +173,31 @@ Les questions doivent être engageantes, fun et variées. En français."""
 
         return raw
 
+    async def generate_ttmc_questions(self, theme: str) -> list[dict]:
+        """Generate 10 QCM questions on `theme` with levels 1 (trivial) → 10 (expert)."""
+        prompt = f"""Génère exactement 10 questions de quiz à choix multiples sur le thème "{theme}".
+Les questions doivent aller du niveau 1 (très facile, connu de tous) au niveau 10 (expert absolu).
+Chaque question a exactement 4 options et une seule bonne réponse.
+
+Retourne UNIQUEMENT un tableau JSON valide où chaque élément a :
+{{
+  "level": <entier de 1 à 10>,
+  "question": "Le texte de la question",
+  "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+  "correct_answer": "Le texte exact de la bonne option"
+}}
+
+Les niveaux doivent être dans l'ordre croissant (level 1 en premier, level 10 en dernier).
+IMPORTANT : pas de préfixe lettre dans les options. En français."""
+
+        raw = await self._generate_json(prompt)
+        for q in raw:
+            if q.get("options"):
+                q["options"] = [self._strip_option_prefix(o) for o in q["options"]]
+            if q.get("correct_answer"):
+                q["correct_answer"] = self._strip_option_prefix(q["correct_answer"])
+        return raw
+
     async def generate_memory_challenge(self, theme: str = "random") -> dict:
         """Generate a memory challenge: fetch image, analyze, generate questions."""
         import random
